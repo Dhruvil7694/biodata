@@ -1,88 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Luxury Matrimonial Biodata Design System
+   Black & White theme with elegant typography */
 
 @layer base {
   :root {
+    /* Core palette - Warm blacks and creams */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 0 0% 6%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 6%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 0 0% 6%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - Rich black */
+    --primary: 0 0% 6%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - Warm gray */
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 6%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted - Soft gray */
+    --muted: 30 10% 95%;
+    --muted-foreground: 0 0% 40%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent - Warm cream */
+    --accent: 40 20% 97%;
+    --accent-foreground: 0 0% 6%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 6%;
 
     --radius: 0.5rem;
 
+    /* Custom luxury colors */
+    --luxury-black: 0 0% 6%;
+    --luxury-charcoal: 0 0% 15%;
+    --luxury-gray: 0 0% 40%;
+    --luxury-silver: 0 0% 75%;
+    --luxury-cream: 40 30% 97%;
+    --luxury-warm-white: 40 20% 99%;
+    
+    /* Typography */
+    --font-serif: 'Playfair Display', Georgia, serif;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+    /* Spacing scale */
+    --section-padding: 5rem;
+    --section-padding-mobile: 3rem;
+
+    /* Sidebar (keeping defaults) */
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 0 0% 4%;
+    --foreground: 0 0% 96%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 96%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 6%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 96%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 60%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 0 0% 12%;
+    --accent-foreground: 0 0% 96%;
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 96%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 83.9%;
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -99,7 +116,225 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    line-height: 1.7;
+  }
+
+  /* Elegant heading styles */
+  h1, h2, h3, h4 {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl lg:text-6xl;
+  }
+
+  h2 {
+    @apply text-2xl md:text-3xl lg:text-4xl;
+  }
+
+  h3 {
+    @apply text-xl md:text-2xl;
+  }
+
+  /* Body text */
+  p {
+    @apply text-base md:text-lg;
+    color: hsl(var(--muted-foreground));
+  }
+}
+
+@layer components {
+  /* Hero section styles */
+  .hero-title {
+    font-family: var(--font-serif);
+    @apply text-4xl md:text-6xl lg:text-7xl font-medium tracking-tight;
+    color: hsl(var(--foreground));
+  }
+
+  .hero-tagline {
+    font-family: var(--font-serif);
+    @apply text-lg md:text-xl lg:text-2xl italic;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Section styles */
+  .section-container {
+    @apply px-6 md:px-12 lg:px-20;
+    padding-top: var(--section-padding-mobile);
+    padding-bottom: var(--section-padding-mobile);
+  }
+
+  @media (min-width: 768px) {
+    .section-container {
+      padding-top: var(--section-padding);
+      padding-bottom: var(--section-padding);
+    }
+  }
+
+  .section-title {
+    font-family: var(--font-serif);
+    @apply text-2xl md:text-3xl font-medium mb-6 md:mb-8;
+    color: hsl(var(--foreground));
+  }
+
+  .section-content {
+    @apply text-base md:text-lg leading-relaxed max-w-2xl;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Elegant divider */
+  .section-divider {
+    @apply w-16 h-px mx-auto;
+    background: linear-gradient(
+      90deg, 
+      transparent, 
+      hsl(var(--luxury-silver)), 
+      transparent
+    );
+  }
+
+  /* Language toggle */
+  .language-toggle {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-full;
+    @apply text-sm font-medium transition-all duration-300;
+    background: hsl(var(--secondary));
+  }
+
+  .language-toggle-active {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  /* Admin panel styles */
+  .admin-card {
+    @apply rounded-lg border bg-card p-4 md:p-6;
+    @apply shadow-sm transition-shadow hover:shadow-md;
+  }
+
+  .admin-input {
+    @apply w-full px-4 py-3 rounded-lg border;
+    @apply bg-background text-foreground;
+    @apply focus:outline-none focus:ring-2 focus:ring-ring;
+    @apply transition-all duration-200;
+  }
+
+  .admin-button {
+    @apply px-6 py-3 rounded-lg font-medium;
+    @apply transition-all duration-200;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .admin-button-primary {
+    @apply admin-button;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .admin-button-primary:hover {
+    background: hsl(var(--luxury-charcoal));
+  }
+
+  .admin-button-secondary {
+    @apply admin-button;
+    background: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+  }
+
+  .admin-button-secondary:hover {
+    background: hsl(var(--border));
+  }
+}
+
+@layer utilities {
+  /* Fade in animation */
+  .fade-in {
+    animation: fadeIn 0.8s ease-out forwards;
+  }
+
+  .fade-in-up {
+    animation: fadeInUp 0.8s ease-out forwards;
+  }
+
+  .fade-in-delay-1 {
+    animation-delay: 0.2s;
+  }
+
+  .fade-in-delay-2 {
+    animation-delay: 0.4s;
+  }
+
+  .fade-in-delay-3 {
+    animation-delay: 0.6s;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Luxury underline */
+  .luxury-underline {
+    position: relative;
+    display: inline-block;
+  }
+
+  .luxury-underline::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background: hsl(var(--luxury-silver));
+  }
+
+  /* Image hover effect */
+  .image-hover {
+    @apply transition-transform duration-500 ease-out;
+  }
+
+  .image-hover:hover {
+    transform: scale(1.02);
+  }
+
+  /* Smooth scrollbar */
+  .smooth-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .smooth-scroll::-webkit-scrollbar-track {
+    background: hsl(var(--secondary));
+  }
+
+  .smooth-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground));
+    border-radius: 4px;
   }
 }
