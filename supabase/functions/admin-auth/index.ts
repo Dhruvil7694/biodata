@@ -11,7 +11,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -149,7 +149,7 @@ serve(async (req) => {
       }
 
       // Hash new password and update
-      const newHash = await bcrypt.hash(newPassword);
+      const newHash = await bcrypt.hash(newPassword, 10);
 
       const { error: updateError } = await supabase
         .from('admin_settings')
@@ -198,7 +198,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Admin auth error:', error);
     return new Response(
       JSON.stringify({ success: false, message: `Server error: ${error.message || 'Unknown error'}` }),

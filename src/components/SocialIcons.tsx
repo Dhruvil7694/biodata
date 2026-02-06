@@ -2,6 +2,7 @@ import {
     Instagram, Facebook, Twitter, Linkedin, Github,
     MessageCircle, Youtube, Mail, Globe, Share2
 } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface SocialLink {
     platform: string;
@@ -38,7 +39,22 @@ const COLOR_MAP: Record<string, string> = {
     website: '#555555'
 };
 
+// Translation map for social media platform names
+const PLATFORM_TRANSLATIONS: Record<string, { en: string; gu: string }> = {
+    instagram: { en: 'Instagram', gu: 'ઇન્સ્ટાગ્રામ' },
+    facebook: { en: 'Facebook', gu: 'ફેસબુક' },
+    twitter: { en: 'Twitter', gu: 'ટ્વિટર' },
+    linkedin: { en: 'LinkedIn', gu: 'લિંક્ડઇન' },
+    github: { en: 'GitHub', gu: 'ગિટહબ' },
+    whatsapp: { en: 'WhatsApp', gu: 'વોટ્સએપ' },
+    youtube: { en: 'YouTube', gu: 'યુટ્યુબ' },
+    email: { en: 'Email', gu: 'ઈમેલ' },
+    website: { en: 'Website', gu: 'વેબસાઇટ' }
+};
+
 export function SocialIcons({ links, className = '' }: SocialIconsProps) {
+    const { language } = useLanguage();
+    
     if (!links || links.length === 0) return null;
 
     return (
@@ -72,7 +88,7 @@ export function SocialIcons({ links, className = '' }: SocialIconsProps) {
                             <Icon className="w-6 h-6" />
                         </div>
                         <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity transform -translate-y-2 group-hover:translate-y-0">
-                            {link.platform}
+                            {PLATFORM_TRANSLATIONS[link.platform]?.[language] || link.platform}
                         </span>
                     </a>
                 );

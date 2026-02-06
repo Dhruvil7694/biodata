@@ -33,7 +33,7 @@ export function HeroSection({ section, heroImageUrl }: HeroSectionProps) {
 
   return (
     <>
-      <section className="relative h-[100dvh] w-full flex flex-col items-center justify-center overflow-hidden bg-luxury-black">
+      <section className="relative h-[100dvh] w-full flex flex-col items-center justify-center overflow-hidden bg-background">
         {/* Simple Background Image */}
         <div
           className="absolute inset-0 cursor-pointer overflow-hidden"
@@ -47,7 +47,7 @@ export function HeroSection({ section, heroImageUrl }: HeroSectionProps) {
           />
           {/* Subtle Overlay */}
           <div
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0 bg-transparent"
             onClick={(e) => {
               e.stopPropagation();
               handleOverlayTap();

@@ -9,12 +9,21 @@ interface SectionEditorProps {
   onClose: () => void;
 }
 
+interface SubField {
+  id: string;
+  key_en: string;
+  key_gu: string;
+  value_en: string;
+  value_gu: string;
+}
+
 interface Field {
   id: string;
   key_en: string;
   key_gu: string;
   value_en: string;
   value_gu: string;
+  subs: SubField[];
 }
 
 export function SectionEditor({ section, onClose }: SectionEditorProps) {
@@ -29,13 +38,47 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
         // If it's a contact section, we treat it as text/custom for now to avoid breaking complex types
         if ('whatsapp' in parsed || 'email' in parsed || 'phone' in parsed) return [];
 
-        return Object.entries(parsed).map(([key, value]) => ({
-          id: Math.random().toString(36).substr(2, 9),
-          key_en: key,
-          key_gu: parsedGu[key] || '',
-          value_en: value as string,
-          value_gu: parsedGu[key] ? (typeof parsedGu[key] === 'string' ? parsedGu[key] as string : '') : '',
-        }));
+        // Extract key labels from Gujarati metadata
+        const keyLabelsGu = parsedGu._key_labels || {};
+
+        // Both English and Gujarati now use the same keys
+        return Object.entries(parsed)
+          .filter(([key]) => !key.startsWith('_')) // Only process actual fields, not metadata
+          .map(([key, value]) => {
+            // Reconstruct sub-fields from metadata
+            const subs: SubField[] = [];
+            let i = 0;
+            while (parsed[`_sub_k_${i}_${key}`] !== undefined) {
+              subs.push({
+                id: Math.random().toString(36).substr(2, 9),
+                key_en: parsed[`_sub_k_${i}_${key}`] || '',
+                key_gu: parsedGu[`_sub_k_${i}_${key}`] || '',
+                value_en: parsed[`_sub_v_${i}_${key}`] || '',
+                value_gu: parsedGu[`_sub_v_${i}_${key}`] || '',
+              });
+              i++;
+            }
+
+            // Fallback for single sub-field legacy data
+            if (subs.length === 0 && (parsed[`_sub_key_${key}`] || parsed[`_sub_val_${key}`])) {
+              subs.push({
+                id: Math.random().toString(36).substr(2, 9),
+                key_en: parsed[`_sub_key_${key}`] || '',
+                key_gu: parsedGu[`_sub_key_${key}`] || '',
+                value_en: parsed[`_sub_val_${key}`] || '',
+                value_gu: parsedGu[`_sub_val_${key}`] || '',
+              });
+            }
+
+            return {
+              id: Math.random().toString(36).substr(2, 9),
+              key_en: key,
+              key_gu: keyLabelsGu[key] || '',
+              value_en: value as string,
+              value_gu: parsedGu[key] || '',
+              subs
+            };
+          });
       }
     } catch {
       // Not JSON or legacy format
@@ -52,10 +95,21 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
     content_en: section.content_en || '',
     content_gu: section.content_gu || '',
     type: section.type,
+    is_gold_medalist: false, // New field for Education
   });
 
+  // Handle initial gold medalist status from content
+  useEffect(() => {
+    try {
+      const parsed = JSON.parse(section.content_en || '{}');
+      if (parsed._is_gold_medalist) {
+        setFormData(prev => ({ ...prev, is_gold_medalist: true }));
+      }
+    } catch (e) { }
+  }, [section.content_en]);
+
   const [fields, setFields] = useState<Field[]>(initialFields.length > 0 ? initialFields : [
-    { id: '1', key_en: '', key_gu: '', value_en: '', value_gu: '' }
+    { id: '1', key_en: '', key_gu: '', value_en: '', value_gu: '', subs: [] }
   ]);
 
   const [isAutoTranslate, setIsAutoTranslate] = useState(true);
@@ -85,13 +139,24 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
           const translatedTitle = await translateToGujarati(formData.title_en);
           setFormData(prev => ({ ...prev, title_gu: translatedTitle || prev.title_gu }));
 
-          // Translate all fields
+          // Translate both field keys AND values for dynamic translation
           const translatedFields = await Promise.all(
-            fields.map(async (f) => ({
-              ...f,
-              key_gu: f.key_en ? await translateToGujarati(f.key_en) : f.key_gu,
-              value_gu: f.value_en ? await translateToGujarati(f.value_en) : f.value_gu,
-            }))
+            fields.map(async (f) => {
+              const translatedSubs = await Promise.all(
+                f.subs.map(async (s) => ({
+                  ...s,
+                  key_gu: s.key_en ? await translateToGujarati(s.key_en) : s.key_gu,
+                  value_gu: s.value_en ? await translateToGujarati(s.value_en) : s.value_gu,
+                }))
+              );
+
+              return {
+                ...f,
+                key_gu: f.key_en ? await translateToGujarati(f.key_en) : f.key_gu,
+                value_gu: f.value_en ? await translateToGujarati(f.value_en) : f.value_gu,
+                subs: translatedSubs
+              };
+            })
           );
           setFields(translatedFields);
         }
@@ -108,10 +173,55 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
     return () => {
       if (translationTimeoutRef.current) clearTimeout(translationTimeoutRef.current);
     };
-  }, [formData.title_en, formData.content_en, fields.map(f => f.key_en + f.value_en).join(''), isAutoTranslate, editorMode]);
+  }, [
+    formData.title_en,
+    formData.content_en,
+    fields.map(f => f.key_en + f.value_en + f.subs.map(s => s.key_en + s.value_en).join('')).join(''),
+    isAutoTranslate,
+    editorMode
+  ]);
 
   const handleAddField = () => {
-    setFields([...fields, { id: Math.random().toString(36).substr(2, 9), key_en: '', key_gu: '', value_en: '', value_gu: '' }]);
+    setFields([...fields, { id: Math.random().toString(36).substr(2, 9), key_en: '', key_gu: '', value_en: '', value_gu: '', subs: [] }]);
+  };
+
+  const handleAddSubField = (fieldId: string) => {
+    setFields(prev => prev.map(f => {
+      if (f.id === fieldId) {
+        return {
+          ...f,
+          subs: [
+            ...f.subs,
+            { id: Math.random().toString(36).substr(2, 9), key_en: '', key_gu: '', value_en: '', value_gu: '' }
+          ]
+        };
+      }
+      return f;
+    }));
+  };
+
+  const handleRemoveSubField = (fieldId: string, subId: string) => {
+    setFields(prev => prev.map(f => {
+      if (f.id === fieldId) {
+        return {
+          ...f,
+          subs: f.subs.filter(s => s.id !== subId)
+        };
+      }
+      return f;
+    }));
+  };
+
+  const handleSubFieldChange = (fieldId: string, subId: string, updates: Partial<SubField>) => {
+    setFields(prev => prev.map(f => {
+      if (f.id === fieldId) {
+        return {
+          ...f,
+          subs: f.subs.map(s => s.id === subId ? { ...s, ...updates } : s)
+        };
+      }
+      return f;
+    }));
   };
 
   const handleRemoveField = (id: string) => {
@@ -127,21 +237,55 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
     let finalContentGu = formData.content_gu;
 
     if (editorMode === 'fields') {
-      const dataEn: Record<string, string> = {};
-      const dataGu: Record<string, string> = {};
+      const dataEn: Record<string, any> = {};
+      const dataGu: Record<string, any> = {};
+      const keyLabelsGu: Record<string, string> = {}; // Store Gujarati key translations
+
       fields.forEach(f => {
-        if (f.key_en) dataEn[f.key_en] = f.value_en;
-        if (f.key_en) dataGu[f.key_en] = f.value_gu || f.value_en; // Fallback to EN if GU is empty
+        if (f.key_en) {
+          // Always use English key for both languages (for consistency)
+          dataEn[f.key_en] = f.value_en;
+          dataGu[f.key_en] = f.value_gu || f.value_en;
+
+          // Store multiple sub-fields using index-based metadata
+          f.subs.forEach((s, i) => {
+            if (s.key_en) {
+              dataEn[`_sub_k_${i}_${f.key_en}`] = s.key_en;
+              dataGu[`_sub_k_${i}_${f.key_en}`] = s.key_gu || s.key_en;
+              dataEn[`_sub_v_${i}_${f.key_en}`] = s.value_en;
+              dataGu[`_sub_v_${i}_${f.key_en}`] = s.value_gu || s.value_en;
+            }
+          });
+
+          // Store the Gujarati translation of the key label
+          if (f.key_gu) {
+            keyLabelsGu[f.key_en] = f.key_gu;
+          }
+        }
       });
+
+      // Add gold medalist flag if enabled
+      if (formData.is_gold_medalist) {
+        dataEn._is_gold_medalist = true;
+        dataGu._is_gold_medalist = true;
+      }
+
+      // Store key labels in Gujarati data for display
+      if (Object.keys(keyLabelsGu).length > 0) {
+        dataGu._key_labels = keyLabelsGu;
+      }
+
       finalContentEn = JSON.stringify(dataEn);
       finalContentGu = JSON.stringify(dataGu);
     }
 
     updateSection.mutate({
       id: section.id,
-      ...formData,
+      title_en: formData.title_en,
+      title_gu: formData.title_gu,
       content_en: finalContentEn,
       content_gu: finalContentGu,
+      type: formData.type,
     }, {
       onSuccess: () => onClose(),
     });
@@ -227,6 +371,26 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
                 </div>
               </div>
             </div>
+
+            {(formData.title_en.toLowerCase().includes('education') || formData.type === 'education') && (
+              <div className="flex items-center justify-between bg-luxury-gold/5 px-4 py-3 rounded-lg border border-luxury-gold/20 shadow-sm shrink-0">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-luxury-gold">Gold Medalist</span>
+                  <span className="text-[9px] text-luxury-gold/60 italic">Display Achievement Tag</span>
+                </div>
+                <button
+                  onClick={() => setFormData(prev => ({ ...prev, is_gold_medalist: !prev.is_gold_medalist }))}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.is_gold_medalist ? 'bg-luxury-gold' : 'bg-muted'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.is_gold_medalist ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                  />
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between lg:justify-end gap-3 bg-card px-4 py-3 lg:py-2 rounded-lg border shadow-sm shrink-0">
               <div className="flex flex-col lg:items-end">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Auto-Translate</span>
@@ -281,50 +445,112 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
                   <div key={field.id} className="group relative bg-muted/5 border rounded-xl p-4 transition-all hover:bg-muted/15 border-transparent hover:border-luxury-gold/20">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                       {/* English Field */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1">Label (EN)</label>
-                          <input
-                            type="text"
-                            value={field.key_en}
-                            onChange={(e) => handleFieldChange(field.id, { key_en: e.target.value })}
-                            className="w-full bg-card border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none"
-                            placeholder="e.g. Occupation"
-                          />
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1">Label (EN)</label>
+                            <input
+                              type="text"
+                              value={field.key_en}
+                              onChange={(e) => handleFieldChange(field.id, { key_en: e.target.value })}
+                              className="w-full bg-card border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none"
+                              placeholder="e.g. Maternal Uncle"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1">Value (EN)</label>
+                            <input
+                              type="text"
+                              value={field.value_en}
+                              onChange={(e) => handleFieldChange(field.id, { value_en: e.target.value })}
+                              className="w-full bg-card border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none"
+                              placeholder="Name"
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1">Value (EN)</label>
-                          <input
-                            type="text"
-                            value={field.value_en}
-                            onChange={(e) => handleFieldChange(field.id, { value_en: e.target.value })}
-                            className="w-full bg-card border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none"
-                            placeholder="Software Engineer"
-                          />
+
+                        {/* Multiple Sub-Fields EN */}
+                        <div className="space-y-3 pl-4 border-l-2 border-dashed border-muted">
+                          {field.subs.map((sub) => (
+                            <div key={sub.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2 relative group-sub">
+                              <input
+                                type="text"
+                                value={sub.key_en}
+                                onChange={(e) => handleSubFieldChange(field.id, sub.id, { key_en: e.target.value })}
+                                className="bg-card border border-dashed rounded-lg px-3 py-1.5 text-[11px] outline-none"
+                                placeholder="Sub-Label (e.g. Occupation)"
+                              />
+                              <input
+                                type="text"
+                                value={sub.value_en}
+                                onChange={(e) => handleSubFieldChange(field.id, sub.id, { value_en: e.target.value })}
+                                className="bg-card border border-dashed rounded-lg px-3 py-1.5 text-[11px] outline-none"
+                                placeholder="Sub-Value"
+                              />
+                              <button
+                                onClick={() => handleRemoveSubField(field.id, sub.id)}
+                                className="absolute -right-7 top-1/2 -translate-y-1/2 text-destructive opacity-0 group-hover:opacity-100 p-1"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => handleAddSubField(field.id)}
+                            className="text-[9px] font-bold text-luxury-gold uppercase tracking-widest flex items-center gap-1 hover:opacity-70 transition-opacity"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Add Sub-Field
+                          </button>
                         </div>
                       </div>
 
                       {/* Gujarati Field */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-luxury-gold uppercase tracking-widest px-1">લેબલ (GU)</label>
-                          <input
-                            type="text"
-                            value={field.key_gu}
-                            onChange={(e) => handleFieldChange(field.id, { key_gu: e.target.value })}
-                            className="w-full bg-luxury-gold/5 border-luxury-gold/20 border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none font-sera"
-                            placeholder="વ્યવસાય"
-                          />
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-luxury-gold uppercase tracking-widest px-1">લેબલ (GU)</label>
+                            <input
+                              type="text"
+                              value={field.key_gu}
+                              onChange={(e) => handleFieldChange(field.id, { key_gu: e.target.value })}
+                              className="w-full bg-luxury-gold/5 border-luxury-gold/20 border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none font-sera"
+                              placeholder="વ્યવસાય"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-luxury-gold uppercase tracking-widest px-1">કિંમત (GU)</label>
+                            <input
+                              type="text"
+                              value={field.value_gu}
+                              onChange={(e) => handleFieldChange(field.id, { value_gu: e.target.value })}
+                              className="w-full bg-luxury-gold/5 border-luxury-gold/20 border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none font-sera"
+                              placeholder="સોફ્ટવેર એન્જિનિયર"
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-luxury-gold uppercase tracking-widest px-1">કિંમત (GU)</label>
-                          <input
-                            type="text"
-                            value={field.value_gu}
-                            onChange={(e) => handleFieldChange(field.id, { value_gu: e.target.value })}
-                            className="w-full bg-luxury-gold/5 border-luxury-gold/20 border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none font-sera"
-                            placeholder="સોફ્ટવેર એન્જિનિયર"
-                          />
+
+                        {/* Multiple Sub-Fields GU */}
+                        <div className="space-y-3 pl-4 border-l-2 border-dashed border-luxury-gold/20">
+                          {field.subs.map((sub) => (
+                            <div key={sub.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <input
+                                type="text"
+                                value={sub.key_gu}
+                                onChange={(e) => handleSubFieldChange(field.id, sub.id, { key_gu: e.target.value })}
+                                className="bg-luxury-gold/5 border-luxury-gold/15 border-dashed border rounded-lg px-3 py-1.5 text-[11px] outline-none font-sera"
+                                placeholder="પેટા-લેબલ"
+                              />
+                              <input
+                                type="text"
+                                value={sub.value_gu}
+                                onChange={(e) => handleSubFieldChange(field.id, sub.id, { value_gu: e.target.value })}
+                                className="bg-luxury-gold/5 border-luxury-gold/15 border-dashed border rounded-lg px-3 py-1.5 text-[11px] outline-none font-sera"
+                                placeholder="પેટા-કિંમત"
+                              />
+                            </div>
+                          ))}
+                          <div className="h-5" /> {/* Spacer to align with EN button */}
                         </div>
                       </div>
                     </div>

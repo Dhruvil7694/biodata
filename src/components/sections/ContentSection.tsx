@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Section, SECTION_TYPES } from '@/lib/types';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { t } from '@/lib/translation';
 import {
   Phone, Mail, MessageCircle, User, Calendar,
   MapPin, Briefcase, GraduationCap, Heart,
@@ -42,7 +43,7 @@ export function ContentSection({ section, index, socialLinks }: ContentSectionPr
   }, []);
 
   const isContactSection = section.type === SECTION_TYPES.CONTACT;
-  const parsedContent = parseContent(content);
+  const parsedContent = parseContent(content, section.content_en, section.content_gu, language);
   const contactInfo = isContactSection ? parseContactContent(content) : null;
 
   return (
@@ -78,7 +79,7 @@ export function ContentSection({ section, index, socialLinks }: ContentSectionPr
               {socialLinks && socialLinks.length > 0 && (
                 <div className="w-full pt-8 mt-8 border-t border-border/50">
                   <p className="text-center text-xs font-bold uppercase tracking-widest text-muted-foreground mb-6">
-                    Social Profiles
+                    {t('socialProfiles', language)}
                   </p>
                   <SocialIcons links={socialLinks} />
                 </div>
@@ -86,26 +87,94 @@ export function ContentSection({ section, index, socialLinks }: ContentSectionPr
             </div>
           ) : parsedContent.type === 'keyvalue' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {Object.entries(parsedContent.data).map(([key, value], idx) => (
-                <div
-                  key={key}
-                  className={`glass-card p-5 flex items-start gap-4 ${isVisible ? 'animate-reveal' : 'opacity-0'
-                    }`}
-                  style={{ animationDelay: `${0.3 + idx * 0.05}s` }}
-                >
-                  <div className="p-2.5 rounded-xl bg-luxury-gold/10 text-luxury-gold shrink-0">
-                    {getDataIcon(key)}
+              {Object.entries(parsedContent.data)
+                .filter(([key]) => !key.startsWith('_')) // Hide metadata keys
+                .map(([key, value], idx) => {
+                  // Extract key labels for Gujarati if available
+                  const keyLabels = language === 'gu' && parsedContent.data._key_labels
+                    ? parsedContent.data._key_labels
+                    : {};
+
+                  // Use translated key label if available, otherwise fall back to t() function
+                  const displayLabel = language === 'gu' && keyLabels[key]
+                    ? keyLabels[key]
+                    : t(key, language);
+
+                  // Reconstruct multiple sub-fields from metadata
+                  const subs: { key: string; val: string }[] = [];
+                  let i = 0;
+                  while (parsedContent.data[`_sub_k_${i}_${key}`] !== undefined) {
+                    subs.push({
+                      key: parsedContent.data[`_sub_k_${i}_${key}`],
+                      val: parsedContent.data[`_sub_v_${i}_${key}`],
+                    });
+                    i++;
+                  }
+
+                  // Fallback for single sub-field legacy data
+                  if (subs.length === 0 && (parsedContent.data[`_sub_key_${key}`] || parsedContent.data[`_sub_val_${key}`])) {
+                    subs.push({
+                      key: parsedContent.data[`_sub_key_${key}`] || '',
+                      val: parsedContent.data[`_sub_val_${key}`] || '',
+                    });
+                  }
+
+                  return (
+                    <div
+                      key={key}
+                      className={`glass-card p-5 flex items-start gap-4 ${isVisible ? 'animate-reveal' : 'opacity-0'
+                        }`}
+                      style={{ animationDelay: `${0.3 + idx * 0.05}s` }}
+                    >
+                      <div className="p-2.5 rounded-xl bg-luxury-gold/10 text-luxury-gold shrink-0">
+                        {getDataIcon(key)}
+                      </div>
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+                          {displayLabel}
+                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-base md:text-lg font-medium text-luxury-black truncate">
+                            {value || '—'}
+                          </span>
+                          {subs.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {subs.map((sub, sIdx) => (
+                                <div key={sIdx} className="flex items-center gap-1.5 flex-wrap">
+                                  {sub.key && (
+                                    <span className="text-[9px] font-bold text-luxury-gold/60 uppercase tracking-widest whitespace-nowrap">
+                                      {sub.key}:
+                                    </span>
+                                  )}
+                                  <span className="text-[11px] font-medium text-muted-foreground py-0.5 px-2 bg-muted/30 rounded-md border border-border/10">
+                                    {sub.val}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {/* Gold Medalist Achievement Tag */}
+              {parsedContent.type === 'keyvalue' && (parsedContent.data as any)._is_gold_medalist && (
+                <div className="md:col-span-2 glass-card p-4 border-luxury-gold/30 bg-luxury-gold/5 flex items-center justify-center gap-4 animate-reveal" style={{ animationDelay: '0.6s' }}>
+                  <div className="w-12 h-12 rounded-full bg-luxury-gold flex items-center justify-center shadow-lg shadow-luxury-gold/20">
+                    <Star className="w-6 h-6 text-white fill-white" />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
-                      {key}
-                    </span>
-                    <span className="text-base md:text-lg font-medium text-luxury-black">
-                      {value || '—'}
-                    </span>
+                  <div className="text-center md:text-left">
+                    <h4 className="text-lg font-serif font-bold text-luxury-gold tracking-wide">
+                      {t('universityGoldMedalist', language)}
+                    </h4>
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-luxury-gold/70 font-bold">
+                      {t('academicExcellence', language)}
+                    </p>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           ) : (
             <div className="glass-card p-8 md:p-12 text-center max-w-3xl mx-auto">
@@ -123,16 +192,19 @@ export function ContentSection({ section, index, socialLinks }: ContentSectionPr
 // Helper to get consistent icons based on common biodata keys
 function getDataIcon(key: string) {
   const k = key.toLowerCase();
-  if (k.includes('age') || k.includes('birth')) return <Calendar className="w-5 h-5" />;
-  if (k.includes('height') || k.includes('weight')) return <Star className="w-5 h-5" />;
-  if (k.includes('location') || k.includes('city') || k.includes('address') || k.includes('native') || k.includes('place') || k.includes('village') || k.includes('mosar')) return <MapPin className="w-5 h-5" />;
-  if (k.includes('education') || k.includes('degree')) return <GraduationCap className="w-5 h-5" />;
-  if (k.includes('occupation') || k.includes('job') || k.includes('career') || k.includes('work')) return <Briefcase className="w-5 h-5" />;
-  if (k.includes('salary') || k.includes('income')) return <Users className="w-5 h-5" />;
-  if (k.includes('father') || k.includes('family') || k.includes('mother') || k.includes('brother') || k.includes('sister')) return <Home className="w-5 h-5" />;
-  if (k.includes('hobby') || k.includes('interest')) return <Heart className="w-5 h-5" />;
-  if (k.includes('about') || k.includes('intro')) return <User className="w-5 h-5" />;
-  if (k.includes('philosophy') || k.includes('goal')) return <BookOpen className="w-5 h-5" />;
+
+  // English matches
+  if (k.includes('age') || k.includes('birth') || k.includes('dob') || k.includes('જન્મ') || k.includes('તારીખ')) return <Calendar className="w-5 h-5" />;
+  if (k.includes('height') || k.includes('weight') || k.includes('nationality') || k.includes('રાષ્ટ્રીયતા') || k.includes('ઊંચાઈ') || k.includes('વજન')) return <Star className="w-5 h-5" />;
+  if (k.includes('location') || k.includes('city') || k.includes('address') || k.includes('native') || k.includes('place') || k.includes('village') || k.includes('mosar') || k.includes('ગામ') || k.includes('રહેઠાણ') || k.includes('વતન')) return <MapPin className="w-5 h-5" />;
+  if (k.includes('education') || k.includes('degree') || k.includes('શિક્ષણ') || k.includes('ભણતર')) return <GraduationCap className="w-5 h-5" />;
+  if (k.includes('occupation') || k.includes('job') || k.includes('career') || k.includes('work') || k.includes('વ્યવસાય') || k.includes('કામ')) return <Briefcase className="w-5 h-5" />;
+  if (k.includes('salary') || k.includes('income') || k.includes('આવક') || k.includes('પગાર')) return <Users className="w-5 h-5" />;
+  if (k.includes('father') || k.includes('family') || k.includes('mother') || k.includes('brother') || k.includes('sister') || k.includes('પરિવાર') || k.includes('કુટુંબ') || k.includes('પિતા') || k.includes('માતા')) return <Home className="w-5 h-5" />;
+  if (k.includes('hobby') || k.includes('interest') || k.includes('શોખ')) return <Heart className="w-5 h-5" />;
+  if (k.includes('about') || k.includes('intro') || k.includes('name') || k.includes('નામ') || k.includes('વિશે')) return <User className="w-5 h-5" />;
+  if (k.includes('philosophy') || k.includes('goal') || k.includes('ધ્યેય')) return <BookOpen className="w-5 h-5" />;
+
   return <Info className="w-5 h-5" />;
 }
 
@@ -148,6 +220,7 @@ interface ContactLinksProps {
 }
 
 function ContactLinks({ contactInfo }: ContactLinksProps) {
+  const { language } = useLanguage();
   return (
     <div className="flex flex-wrap justify-center gap-6">
       {contactInfo.whatsapp && (
@@ -160,7 +233,9 @@ function ContactLinks({ contactInfo }: ContactLinksProps) {
           <div className="p-5 rounded-full bg-[#25D366] text-white shadow-lg group-hover:scale-110 group-hover:shadow-[#25D366]/30 transition-all">
             <MessageCircle className="w-7 h-7" />
           </div>
-          <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground group-hover:text-[#25D366]">WhatsApp</span>
+          <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground group-hover:text-[#25D366]">
+            {t('whatsapp', language)}
+          </span>
         </a>
       )}
 
@@ -172,7 +247,9 @@ function ContactLinks({ contactInfo }: ContactLinksProps) {
           <div className="p-5 rounded-full bg-luxury-black text-white shadow-lg group-hover:scale-110 group-hover:shadow-black/30 transition-all">
             <Phone className="w-7 h-7" />
           </div>
-          <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground group-hover:text-luxury-black">Call</span>
+          <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground group-hover:text-luxury-black">
+            {t('call', language)}
+          </span>
         </a>
       )}
 
@@ -184,7 +261,9 @@ function ContactLinks({ contactInfo }: ContactLinksProps) {
           <div className="p-5 rounded-full bg-luxury-gold text-white shadow-lg group-hover:scale-110 group-hover:shadow-luxury-gold/30 transition-all">
             <Mail className="w-7 h-7" />
           </div>
-          <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground group-hover:text-luxury-gold">Email</span>
+          <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground group-hover:text-luxury-gold">
+            {t('email', language)}
+          </span>
         </a>
       )}
     </div>
@@ -195,18 +274,23 @@ type ParsedContent =
   | { type: 'text'; text: string }
   | { type: 'keyvalue'; data: Record<string, string> };
 
-function parseContent(content: string | null): ParsedContent {
+function parseContent(content: string | null, contentEn: string | null, contentGu: string | null, language: 'en' | 'gu'): ParsedContent {
   if (!content) return { type: 'text', text: '' };
 
   try {
     const parsed = JSON.parse(content);
     if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      // Check if it's a contact section (has whatsapp, email, or phone)
       if ('whatsapp' in parsed || 'email' in parsed || 'phone' in parsed) {
         return { type: 'text', text: '' };
       }
+
+      // For key-value pairs, both English and Gujarati now use English keys
+      // So we can directly return the parsed content
       return { type: 'keyvalue', data: parsed };
     }
   } catch {
+    // Not JSON, treat as plain text
   }
 
   return { type: 'text', text: content };
