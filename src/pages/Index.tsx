@@ -9,6 +9,7 @@ import { ContentSection } from '@/components/sections/ContentSection';
 import { AdminLoginModal } from '@/components/admin/AdminLoginModal';
 import { AdminPanel } from '@/components/admin/AdminPanel';
 import { SECTION_TYPES } from '@/lib/types';
+import { SocialIcons } from '@/components/SocialIcons';
 
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 
@@ -68,6 +69,7 @@ export default function Index() {
           <HeroSection
             section={heroSection}
             heroImageUrl={adminSettings?.hero_image_url}
+            socialLinks={adminSettings?.social_links}
           />
         )}
 
@@ -82,7 +84,15 @@ export default function Index() {
         ))}
 
         {/* Footer */}
-        <footer className="py-8 text-center text-sm text-muted-foreground bg-luxury-cream">
+        <footer className="py-12 text-center bg-luxury-cream border-t border-border/10">
+          {adminSettings?.social_links && adminSettings.social_links.length > 0 && (
+            <div className="container mx-auto px-4">
+              <SocialIcons links={adminSettings.social_links} className="mb-4" />
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.3em] mt-8">
+                {language === 'en' ? 'Connect with me' : 'મારી સાથે જોડાઓ'}
+              </p>
+            </div>
+          )}
         </footer>
       </main>
 

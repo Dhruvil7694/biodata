@@ -54,14 +54,15 @@ const PLATFORM_TRANSLATIONS: Record<string, { en: string; gu: string }> = {
 
 export function SocialIcons({ links, className = '' }: SocialIconsProps) {
     const { language } = useLanguage();
-    
+
     if (!links || links.length === 0) return null;
 
     return (
         <div className={`flex flex-wrap justify-center gap-4 ${className}`}>
             {links.map((link, idx) => {
-                const Icon = ICON_MAP[link.platform] || Share2;
-                const color = COLOR_MAP[link.platform] || 'currentColor';
+                const platform = link.platform.toLowerCase();
+                const Icon = ICON_MAP[platform] || Share2;
+                const color = COLOR_MAP[platform] || 'currentColor';
 
                 return (
                     <a
@@ -88,7 +89,7 @@ export function SocialIcons({ links, className = '' }: SocialIconsProps) {
                             <Icon className="w-6 h-6" />
                         </div>
                         <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity transform -translate-y-2 group-hover:translate-y-0">
-                            {PLATFORM_TRANSLATIONS[link.platform]?.[language] || link.platform}
+                            {PLATFORM_TRANSLATIONS[platform]?.[language] || link.platform}
                         </span>
                     </a>
                 );
