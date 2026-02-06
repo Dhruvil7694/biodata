@@ -1,27 +1,19 @@
-// @ts-ignore: Deno imports
-import { serve } from "http/server.ts";
-// @ts-ignore: Deno imports
-import { createClient } from "supabase-js";
+
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
-serve(async (req: Request) => {
+Deno.serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders
-    });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // @ts-ignore: Deno runtime
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    // @ts-ignore: Deno runtime
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -29,21 +21,21 @@ serve(async (req: Request) => {
     const formData = await req.formData();
     const file = formData.get('file');
 
-    if (!file || !(file instanceof File)) {
+    if (!file) {
       return new Response(
-        JSON.stringify({ error: 'No valid file uploaded' }),
+        JSON.stringify({ error: 'No file uploaded' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
 
-    const fileExt = file.name.split('.').pop();
+    const fileExt = (file as File).name.split('.').pop();
     const fileName = `hero-${Date.now()}.${fileExt}`;
 
     // Upload using service key (bypasses RLS)
     const { data, error: uploadError } = await supabase.storage
       .from('biodata-images')
       .upload(fileName, file, {
-        contentType: file.type,
+        contentType: (file as File).type,
         upsert: true
       });
 
@@ -65,7 +57,7 @@ serve(async (req: Request) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Server Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),

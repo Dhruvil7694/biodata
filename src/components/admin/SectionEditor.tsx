@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Section } from '@/lib/types';
 import { useUpdateSection } from '@/hooks/useSections';
-import { X, Save, Languages, Loader2, Plus, Trash2, Type, LayoutGrid } from 'lucide-react';
+import { X, Save, Languages, Loader2, Plus, Trash2, Type, LayoutGrid, Calendar as CalendarIcon } from 'lucide-react';
 import { translateToGujarati } from '@/lib/translation';
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format, parse } from "date-fns";
 
 interface SectionEditorProps {
   section: Section;
@@ -229,7 +232,35 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
   };
 
   const handleFieldChange = (id: string, updates: Partial<Field>) => {
-    setFields(fields.map(f => f.id === id ? { ...f, ...updates } : f));
+    const newFields = fields.map(f => (f.id === id ? { ...f, ...updates } : f));
+
+    // Automatic Age Sync: If we just updated a DOB field, find and update the Age field in the same section
+    const updatedField = newFields.find(f => f.id === id);
+    if (updatedField) {
+      const lowKey = updatedField.key_en.toLowerCase();
+      const isDob = ['dob', 'd.o.b', 'birth date', 'birthdate', 'birth'].includes(lowKey);
+
+      if (isDob && updatedField.value_en) {
+        const age = calculateAge(updatedField.value_en);
+        if (age) {
+          // Find the Age field in the same section (fields list)
+          const ageFieldIndex = newFields.findIndex(f =>
+            f.key_en.toLowerCase() === 'age' || f.key_en === 'ઉંમર'
+          );
+          if (ageFieldIndex !== -1) {
+            newFields[ageFieldIndex].value_en = age;
+          }
+        }
+      } else if (lowKey === 'age' && updatedField.value_en) {
+        // If user types a date directly into Age field, calculate years
+        const ageValue = calculateAge(updatedField.value_en);
+        if (ageValue) {
+          updatedField.value_en = ageValue;
+        }
+      }
+    }
+
+    setFields(newFields);
   };
 
   const handleSave = () => {
@@ -459,13 +490,31 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
                           </div>
                           <div className="space-y-1">
                             <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1">Value (EN)</label>
-                            <input
-                              type="text"
-                              value={field.value_en}
-                              onChange={(e) => handleFieldChange(field.id, { value_en: e.target.value })}
-                              className="w-full bg-card border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none"
-                              placeholder="Name"
-                            />
+                            <div className="relative group/dob">
+                              <input
+                                type="text"
+                                value={field.value_en}
+                                onChange={(e) => handleFieldChange(field.id, { value_en: e.target.value })}
+                                className="w-full bg-card border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none"
+                                placeholder={['dob', 'd.o.b', 'birth date', 'birthdate', 'birth'].includes(field.key_en.toLowerCase()) ? "DD/MM/YYYY" : "Name"}
+                              />
+                              {['dob', 'd.o.b', 'birth date', 'birthdate', 'birth'].includes(field.key_en.toLowerCase()) && (
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                  <input
+                                    type="date"
+                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                    onChange={(e) => {
+                                      const date = e.target.value;
+                                      if (date) {
+                                        const [y, m, d] = date.split('-');
+                                        handleFieldChange(field.id, { value_en: `${d}/${m}/${y}` });
+                                      }
+                                    }}
+                                  />
+                                  <CalendarIcon className="w-4 h-4 text-luxury-gold transition-all hover:scale-110" />
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -520,13 +569,31 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
                           </div>
                           <div className="space-y-1">
                             <label className="text-[9px] font-bold text-luxury-gold uppercase tracking-widest px-1">કિંમત (GU)</label>
-                            <input
-                              type="text"
-                              value={field.value_gu}
-                              onChange={(e) => handleFieldChange(field.id, { value_gu: e.target.value })}
-                              className="w-full bg-luxury-gold/5 border-luxury-gold/20 border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none font-sera"
-                              placeholder="સોફ્ટવેર એન્જિનિયર"
-                            />
+                            <div className="relative group/dob-gu">
+                              <input
+                                type="text"
+                                value={field.value_gu}
+                                onChange={(e) => handleFieldChange(field.id, { value_gu: e.target.value })}
+                                className="w-full bg-luxury-gold/5 border-luxury-gold/20 border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none font-sera"
+                                placeholder={['dob', 'd.o.b', 'birth date', 'birthdate', 'birth'].includes(field.key_en.toLowerCase()) ? "DD/MM/YYYY" : "સોફ્ટવેર એન્જિનિયર"}
+                              />
+                              {['dob', 'd.o.b', 'birth date', 'birthdate', 'birth'].includes(field.key_en.toLowerCase()) && (
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                  <input
+                                    type="date"
+                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                    onChange={(e) => {
+                                      const date = e.target.value;
+                                      if (date) {
+                                        const [y, m, d] = date.split('-');
+                                        handleFieldChange(field.id, { value_gu: `${d}/${m}/${y}` });
+                                      }
+                                    }}
+                                  />
+                                  <CalendarIcon className="w-4 h-4 text-luxury-gold transition-all hover:scale-110" />
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -606,4 +673,49 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
       </div>
     </div>
   );
+}
+
+function calculateAge(dobString: string): string | null {
+  if (!dobString) return null;
+
+  // Try to parse the date. Handling common formats: DD/MM/YYYY, YYYY-MM-DD
+  let birthDate: Date | null = null;
+
+  if (dobString.includes('/')) {
+    const parts = dobString.split('/');
+    if (parts.length === 3) {
+      const d = parseInt(parts[0]);
+      const m = parseInt(parts[1]) - 1;
+      const y = parseInt(parts[2]);
+      if (y > 1900 && m >= 0 && m < 12 && d > 0 && d <= 31) {
+        birthDate = new Date(y, m, d);
+      }
+    }
+  }
+
+  if (!birthDate || isNaN(birthDate.getTime())) {
+    birthDate = new Date(dobString);
+  }
+
+  if (isNaN(birthDate.getTime())) return null;
+
+  const today = new Date();
+  if (birthDate > today) return null;
+
+  let years = today.getFullYear() - birthDate.getFullYear();
+  let months = today.getMonth() - birthDate.getMonth();
+  let days = today.getDate() - birthDate.getDate();
+
+  if (days < 0) {
+    months--;
+    const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    days += prevMonth.getDate();
+  }
+
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+
+  return `${years} Years`;
 }

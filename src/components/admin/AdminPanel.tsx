@@ -8,6 +8,9 @@ import { PasswordChangeModal } from './PasswordChangeModal';
 import { HeroImageManager } from './HeroImageManager';
 import { SocialMediaManager } from './SocialMediaManager';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { Switch } from '@/components/ui/switch';
+import { supabase } from '@/integrations/supabase/client';
 
 export function AdminPanel() {
   const { isAuthenticated, isAdminVisible, logout } = useAdmin();
@@ -17,6 +20,7 @@ export function AdminPanel() {
   const duplicateSection = useDuplicateSection();
   const reorderSections = useReorderSections();
   const createSection = useCreateSection();
+  const { settings: adminSettings, updateSettings } = useAdminSettings();
 
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -123,20 +127,67 @@ export function AdminPanel() {
       {/* Content */}
       <main className="h-[calc(100vh-60px)] overflow-y-auto p-3 md:p-6 smooth-scroll bg-luxury-cream/30">
         <div className="max-w-2xl mx-auto space-y-8 pb-20">
-          {/* Top Level Settings */}
           <div className="space-y-4">
+            {/* Privacy Section (Primary) */}
             <div className="space-y-2">
               <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2">
                 <span className="w-1 h-1 rounded-full bg-luxury-gold" />
-                Media & Identity
+                Security & Privacy
+              </h2>
+              <div className="admin-card p-4 space-y-4 bg-luxury-gold/5 border-luxury-gold/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${adminSettings?.is_privacy_mode ? 'bg-luxury-gold/20 shadow-[0_0_15px_-5px_rgba(212,175,55,0.4)]' : 'bg-muted'}`}>
+                      {adminSettings?.is_privacy_mode ? <EyeOff className="w-4 h-4 text-luxury-gold" /> : <Eye className="w-4 h-4" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Privacy Blur Mode</p>
+                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest opacity-60">Hide site with blur overlay</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={adminSettings?.is_privacy_mode || false}
+                    onCheckedChange={(checked) => {
+                      updateSettings.mutate({ is_privacy_mode: checked });
+                    }}
+                  />
+                </div>
+
+                <button
+                  onClick={async () => {
+                    const { data, error } = await supabase.functions.invoke('admin-settings', {
+                      body: {
+                        action: 'raw_sql',
+                        sql: "ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS is_privacy_mode BOOLEAN DEFAULT FALSE;"
+                      }
+                    });
+                    if (error) {
+                      toast({ title: 'Sync Error', description: error.message, variant: 'destructive' });
+                    } else {
+                      toast({ title: 'System Synced', description: 'Privacy mode support added to database.' });
+                    }
+                  }}
+                  className="text-[8px] text-muted-foreground/30 hover:text-luxury-gold transition-colors block w-full text-left"
+                >
+                  System Check: Run this if the toggle doesn't save.
+                </button>
+              </div>
+            </div>
+
+            {/* Media Section */}
+            <div className="space-y-2">
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2 mt-4">
+                <span className="w-1 h-1 rounded-full bg-luxury-gold" />
+                Visual Content
               </h2>
               <HeroImageManager />
             </div>
 
+            {/* Social Section */}
             <div className="space-y-2">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2 mt-6">
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2 mt-4">
                 <span className="w-1 h-1 rounded-full bg-luxury-gold" />
-                Fast Connect
+                Social Connectivity
               </h2>
               <SocialMediaManager />
             </div>

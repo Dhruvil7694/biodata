@@ -18,7 +18,7 @@ export function AdminLoginModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/50 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-foreground/50 backdrop-blur-sm animate-fade-in">
       <div className="w-full max-w-sm bg-card rounded-2xl shadow-2xl p-6 md:p-8 animate-scale-in">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">

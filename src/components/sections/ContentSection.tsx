@@ -100,6 +100,14 @@ export function ContentSection({ section, index, socialLinks }: ContentSectionPr
                     ? keyLabels[key]
                     : t(key, language);
 
+                  // Simple Age Calculation
+                  let displayValue = value || '—';
+                  if (key.toLowerCase() === 'age' || key === 'ઉંમર') {
+                    const dob = parsedContent.data['dob'] || parsedContent.data['D.O.B'] || parsedContent.data['Birth Date'];
+                    const age = dob ? calculateAge(dob, language) : null;
+                    if (age) displayValue = age;
+                  }
+
                   // Reconstruct multiple sub-fields from metadata
                   const subs: { key: string; val: string }[] = [];
                   let i = 0;
@@ -134,8 +142,8 @@ export function ContentSection({ section, index, socialLinks }: ContentSectionPr
                           {displayLabel}
                         </span>
                         <div className="flex flex-col">
-                          <span className="text-base md:text-lg font-medium text-luxury-black truncate">
-                            {value || '—'}
+                          <span className="text-base md:text-lg font-medium text-luxury-black leading-snug break-words whitespace-pre-wrap">
+                            {displayValue}
                           </span>
                           {subs.length > 0 && (
                             <div className="mt-2 space-y-2">
@@ -146,7 +154,7 @@ export function ContentSection({ section, index, socialLinks }: ContentSectionPr
                                       {sub.key}:
                                     </span>
                                   )}
-                                  <span className="text-[11px] font-medium text-muted-foreground py-0.5 px-2 bg-muted/30 rounded-md border border-border/10">
+                                  <span className="text-[11px] font-medium text-muted-foreground py-1 px-3 bg-muted/30 rounded-md border border-border/10 break-words leading-relaxed whitespace-pre-wrap">
                                     {sub.val}
                                   </span>
                                 </div>
@@ -303,5 +311,61 @@ function parseContactContent(content: string | null): { whatsapp?: string; email
     return JSON.parse(content);
   } catch {
     return null;
+  }
+}
+
+function calculateAge(dobString: string, language: 'en' | 'gu'): string | null {
+  if (!dobString) return null;
+
+  // Try to parse the date. Handling common formats: DD/MM/YYYY, YYYY-MM-DD
+  let birthDate: Date | null = null;
+
+  if (dobString.includes('/')) {
+    const parts = dobString.split('/');
+    if (parts.length === 3) {
+      const d = parseInt(parts[0]);
+      const m = parseInt(parts[1]) - 1;
+      const y = parseInt(parts[2]);
+      // Basic validation for DD/MM/YYYY
+      if (y > 1900 && m >= 0 && m < 12 && d > 0 && d <= 31) {
+        birthDate = new Date(y, m, d);
+      }
+    }
+  }
+
+  // Fallback to standard JS parsing
+  if (!birthDate || isNaN(birthDate.getTime())) {
+    birthDate = new Date(dobString);
+  }
+
+  if (isNaN(birthDate.getTime())) return null;
+
+  const today = new Date();
+  if (birthDate > today) return null;
+
+  let years = today.getFullYear() - birthDate.getFullYear();
+  let months = today.getMonth() - birthDate.getMonth();
+  let days = today.getDate() - birthDate.getDate();
+
+  if (days < 0) {
+    months--;
+    // Get days in previous month
+    const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    days += prevMonth.getDate();
+  }
+
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+
+  const yLabel = t('years', language);
+  const mLabel = t('months', language);
+  const dLabel = t('days', language);
+
+  if (language === 'en') {
+    return `${years} Years`;
+  } else {
+    return `${years} વર્ષ`;
   }
 }

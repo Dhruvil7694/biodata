@@ -51,6 +51,9 @@ export const translations = {
         unableToLoad: 'Unable to load content. Please try again later.',
         explore: 'Explore',
         call: 'Call',
+        years: 'Years',
+        months: 'Months',
+        days: 'Days',
 
         // Achievement
         universitygoldmedalist: 'University Gold Medalist',
@@ -149,6 +152,9 @@ export const translations = {
         unableToLoad: 'સામગ્રી લોડ કરવામાં અસમર્થ. કૃપા કરીને પછીથી પ્રયાસ કરો.',
         explore: 'તપાસો',
         call: 'કોલ કરો',
+        years: 'વર્ષ',
+        months: 'મહિના',
+        days: 'દિવસ',
 
         // Achievement
         universitygoldmedalist: 'યુનિવર્સિટી ગોલ્ડ મેડલિસ્ટ',
