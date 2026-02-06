@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useAllSections, useUpdateSection, useDeleteSection, useDuplicateSection, useReorderSections, useCreateSection } from '@/hooks/useSections';
 import { Section, SECTION_TYPES } from '@/lib/types';
 import { X, LogOut, GripVertical, Eye, EyeOff, Edit2, Trash2, Copy, Plus, Settings } from 'lucide-react';
 import { SectionEditor } from './SectionEditor';
 import { PasswordChangeModal } from './PasswordChangeModal';
+import { HeroImageManager } from './HeroImageManager';
+import { SocialMediaManager } from './SocialMediaManager';
+import { useToast } from '@/hooks/use-toast';
 
 export function AdminPanel() {
   const { isAuthenticated, isAdminVisible, logout } = useAdmin();
@@ -14,10 +17,30 @@ export function AdminPanel() {
   const duplicateSection = useDuplicateSection();
   const reorderSections = useReorderSections();
   const createSection = useCreateSection();
-  
+
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  // Auto-restore hero section if missing
+  const { toast } = useToast();
+  useEffect(() => {
+    if (sections && !sections.find(s => s.type === SECTION_TYPES.HERO)) {
+      createSection.mutate({
+        order_index: 0,
+        visible: true,
+        type: SECTION_TYPES.HERO,
+        title_en: 'Full Name',
+        title_gu: 'પૂર્ણ નામ',
+        content_en: 'A journey of love begins here',
+        content_gu: 'પ્રેમની યાત્રા અહીંથી શરૂ થાય છે',
+      });
+      toast({
+        title: 'Section Restored',
+        description: 'The Hero section was missing and has been restored.',
+      });
+    }
+  }, [sections, createSection]);
 
   if (!isAdminVisible || !isAuthenticated) return null;
 
@@ -65,11 +88,11 @@ export function AdminPanel() {
 
     const draggedIndex = sections.findIndex(s => s.id === draggedId);
     const targetIndex = sections.findIndex(s => s.id === targetId);
-    
+
     const newOrder = [...sections];
     const [removed] = newOrder.splice(draggedIndex, 1);
     newOrder.splice(targetIndex, 0, removed);
-    
+
     reorderSections.mutate(newOrder.map(s => s.id));
     setDraggedId(null);
   };
@@ -77,119 +100,161 @@ export function AdminPanel() {
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden animate-fade-in">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-card border-b px-4 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-serif font-medium">Admin Panel</h1>
-        <div className="flex items-center gap-2">
+      <header className="sticky top-0 z-10 bg-card border-b px-4 py-3 flex items-center justify-between shadow-sm">
+        <h1 className="text-base md:text-lg font-serif font-medium truncate mr-2">Admin Dashboard</h1>
+        <div className="flex items-center gap-1 md:gap-2 shrink-0">
           <button
             onClick={() => setShowPasswordModal(true)}
-            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground"
             title="Settings"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-4 h-4 md:w-5 md:h-5" />
           </button>
           <button
             onClick={logout}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity"
+            className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
           >
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline">Logout</span>
+            <LogOut className="w-3.5 h-3.5 md:w-4 md:h-4" />
+            <span className="hidden xs:inline">Logoff</span>
           </button>
         </div>
       </header>
 
       {/* Content */}
-      <main className="h-[calc(100vh-60px)] overflow-y-auto p-4 smooth-scroll">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {isLoading && (
-            <div className="text-center py-12 text-muted-foreground">
-              Loading sections...
+      <main className="h-[calc(100vh-60px)] overflow-y-auto p-3 md:p-6 smooth-scroll bg-luxury-cream/30">
+        <div className="max-w-2xl mx-auto space-y-8 pb-20">
+          {/* Top Level Settings */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-luxury-gold" />
+                Media & Identity
+              </h2>
+              <HeroImageManager />
             </div>
-          )}
 
-          {error && (
-            <div className="text-center py-12 text-destructive">
-              Error loading sections. Please try again.
+            <div className="space-y-2">
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2 mt-6">
+                <span className="w-1 h-1 rounded-full bg-luxury-gold" />
+                Fast Connect
+              </h2>
+              <SocialMediaManager />
             </div>
-          )}
+          </div>
 
-          {sections?.map((section) => (
-            <div
-              key={section.id}
-              draggable
-              onDragStart={() => handleDragStart(section.id)}
-              onDragOver={(e) => handleDragOver(e, section.id)}
-              onDrop={() => handleDrop(section.id)}
-              className={`admin-card flex items-start gap-3 ${
-                draggedId === section.id ? 'opacity-50' : ''
-              } ${!section.visible ? 'opacity-60' : ''}`}
-            >
-              {/* Drag handle */}
-              <div className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground">
-                <GripVertical className="w-5 h-5" />
+          <div className="relative">
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-border/50" />
+            <div className="relative flex justify-center">
+              <span className="bg-luxury-cream md:bg-background px-4 text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground/40">Story Builder</span>
+            </div>
+          </div>
+
+          {/* Dynamic Sections */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-luxury-gold" />
+                Dynamic Content
+              </h2>
+              {sections && <span className="text-[9px] font-mono text-muted-foreground opacity-50">{sections.length} Sections</span>}
+            </div>
+
+            {isLoading && (
+              <div className="text-center py-20 flex flex-col items-center gap-4">
+                <div className="w-8 h-8 border-2 border-luxury-gold border-t-transparent rounded-full animate-spin" />
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Retrieving Sections...</p>
               </div>
+            )}
 
-              {/* Section info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                    {section.type}
-                  </span>
-                  {!section.visible && (
-                    <span className="text-xs px-2 py-0.5 bg-muted rounded">Hidden</span>
-                  )}
+            {error && (
+              <div className="text-center py-12 p-6 bg-destructive/5 border border-destructive/20 rounded-xl text-destructive">
+                <p className="text-xs font-bold uppercase tracking-widest mb-2">Sync Error</p>
+                <p className="text-[10px] opacity-70">Unable to load content segments. Please check your connection.</p>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {sections?.map((section) => (
+                <div
+                  key={section.id}
+                  draggable
+                  onDragStart={() => handleDragStart(section.id)}
+                  onDragOver={(e) => handleDragOver(e, section.id)}
+                  onDrop={() => handleDrop(section.id)}
+                  className={`admin-card flex items-stretch gap-0 p-0 overflow-hidden ${draggedId === section.id ? 'opacity-50 ring-2 ring-luxury-gold' : ''
+                    } ${!section.visible ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                >
+                  {/* Drag handle */}
+                  <div className="cursor-grab active:cursor-grabbing w-10 flex items-center justify-center text-muted-foreground/30 hover:text-luxury-gold bg-muted/5 border-r hover:bg-muted/10 transition-colors shrink-0">
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+
+                  {/* Section Content */}
+                  <div className="flex-1 min-w-0 p-3 md:p-4 flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[9px] font-bold uppercase tracking-tighter text-luxury-gold bg-luxury-gold/5 px-1.5 py-0.5 rounded">
+                        {section.type}
+                      </span>
+                      {!section.visible && (
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">Invisible</span>
+                      )}
+                    </div>
+                    <h3 className="text-sm font-medium text-foreground truncate max-w-[180px] xs:max-w-none">{section.title_en}</h3>
+                    <p className="text-[10px] text-muted-foreground truncate opacity-70">
+                      {section.content_en?.substring(0, 40)}
+                    </p>
+                  </div>
+
+                  {/* Actions Grid */}
+                  <div className="grid grid-cols-2 bg-muted/5 border-l shrink-0">
+                    <button
+                      onClick={() => handleVisibilityToggle(section)}
+                      className="p-3 md:p-4 border-b border-r border-border/50 hover:bg-white hover:text-luxury-gold transition-all"
+                      title={section.visible ? 'Hide' : 'Show'}
+                    >
+                      {section.visible ? (
+                        <Eye className="w-4 h-4" />
+                      ) : (
+                        <EyeOff className="w-4 h-4 text-muted-foreground/40" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setEditingSection(section)}
+                      className="p-3 md:p-4 border-b border-border/50 hover:bg-white hover:text-luxury-gold transition-all"
+                      title="Edit"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDuplicate(section.id)}
+                      className="p-3 md:p-4 border-r border-border/50 hover:bg-white hover:text-luxury-gold transition-all"
+                      title="Duplicate"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(section.id)}
+                      className="p-3 md:p-4 hover:bg-destructive/10 text-destructive/40 hover:text-destructive transition-all"
+                      title="Remove"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <h3 className="font-medium truncate">{section.title_en}</h3>
-                <p className="text-sm text-muted-foreground truncate">
-                  {section.content_en?.substring(0, 50)}...
-                </p>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => handleVisibilityToggle(section)}
-                  className="p-2 rounded-lg hover:bg-secondary transition-colors"
-                  title={section.visible ? 'Hide section' : 'Show section'}
-                >
-                  {section.visible ? (
-                    <Eye className="w-4 h-4" />
-                  ) : (
-                    <EyeOff className="w-4 h-4 text-muted-foreground" />
-                  )}
-                </button>
-                <button
-                  onClick={() => setEditingSection(section)}
-                  className="p-2 rounded-lg hover:bg-secondary transition-colors"
-                  title="Edit section"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDuplicate(section.id)}
-                  className="p-2 rounded-lg hover:bg-secondary transition-colors"
-                  title="Duplicate section"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(section.id)}
-                  className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
-                  title="Delete section"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
 
-          {/* Add section button */}
-          <button
-            onClick={handleAddSection}
-            className="w-full py-4 border-2 border-dashed border-border rounded-lg flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Add New Section</span>
-          </button>
+            {/* Add section button */}
+            <button
+              onClick={handleAddSection}
+              className="w-full py-5 md:py-8 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-luxury-gold hover:border-luxury-gold/50 hover:bg-luxury-gold/5 transition-all group mt-6"
+            >
+              <div className="w-10 h-10 rounded-full bg-muted group-hover:bg-luxury-gold/10 flex items-center justify-center transition-colors">
+                <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em] mt-1">Insert Content Segment</span>
+            </button>
+          </div>
         </div>
       </main>
 

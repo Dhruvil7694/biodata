@@ -8,28 +8,17 @@ import { AdminLoginModal } from '@/components/admin/AdminLoginModal';
 import { AdminPanel } from '@/components/admin/AdminPanel';
 import { SECTION_TYPES } from '@/lib/types';
 
+import { useAdminSettings } from '@/hooks/useAdminSettings';
+
 export default function Index() {
-  const { data: sections, isLoading, error } = useSections();
-  
-  // Fetch admin settings for hero image
-  const { data: adminSettings } = useQuery({
-    queryKey: ['admin-settings'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('admin_settings')
-        .select('hero_image_url, site_title')
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: sections, isLoading: isLoadingSections, error } = useSections();
+  const { settings: adminSettings, isLoading: isLoadingSettings } = useAdminSettings();
 
   // Find hero section
   const heroSection = sections?.find(s => s.type === SECTION_TYPES.HERO);
   const contentSections = sections?.filter(s => s.type !== SECTION_TYPES.HERO) || [];
 
-  if (isLoading) {
+  if (isLoadingSections || isLoadingSettings) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -60,18 +49,19 @@ export default function Index() {
       <main className="min-h-screen">
         {/* Hero Section */}
         {heroSection && (
-          <HeroSection 
-            section={heroSection} 
+          <HeroSection
+            section={heroSection}
             heroImageUrl={adminSettings?.hero_image_url}
           />
         )}
 
         {/* Content Sections */}
         {contentSections.map((section, index) => (
-          <ContentSection 
-            key={section.id} 
-            section={section} 
+          <ContentSection
+            key={section.id}
+            section={section}
             index={index}
+            socialLinks={adminSettings?.social_links}
           />
         ))}
 

@@ -63,6 +63,8 @@ export default {
         },
         luxury: {
           black: "hsl(var(--luxury-black))",
+          gold: "hsl(var(--luxury-gold))",
+          "gold-muted": "hsl(var(--luxury-gold-muted))",
           charcoal: "hsl(var(--luxury-charcoal))",
           gray: "hsl(var(--luxury-gray))",
           silver: "hsl(var(--luxury-silver))",

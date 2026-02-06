@@ -3,6 +3,7 @@ import { Section } from '@/lib/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAdmin } from '@/contexts/AdminContext';
 import { FullscreenImageModal } from '@/components/FullscreenImageModal';
+import { ChevronDown } from 'lucide-react';
 import defaultPortrait from '@/assets/hero-portrait.jpg';
 
 interface HeroSectionProps {
@@ -17,40 +18,26 @@ export function HeroSection({ section, heroImageUrl }: HeroSectionProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const title = language === 'en' ? section.title_en : section.title_gu;
-  const tagline = language === 'en' ? section.content_en : section.content_gu;
   const imageUrl = heroImageUrl || defaultPortrait;
 
-  // Secret admin trigger: 7 taps on the name
-  const handleNameTap = () => {
+  // Secret admin trigger on the main overlay
+  const handleOverlayTap = () => {
     setTapCount(prev => prev + 1);
-
-    // Reset tap count after 2 seconds of inactivity
-    if (tapTimeoutRef.current) {
-      clearTimeout(tapTimeoutRef.current);
-    }
-    tapTimeoutRef.current = setTimeout(() => {
-      setTapCount(0);
-    }, 2000);
-
-    // Trigger admin login on 7th tap
+    if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+    tapTimeoutRef.current = setTimeout(() => setTapCount(0), 2000);
     if (tapCount + 1 >= 7) {
       setTapCount(0);
       showAdminLogin();
     }
   };
 
-  const handleImageClick = () => {
-    setIsFullscreen(true);
-  };
-
   return (
     <>
-      <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
-        {/* Fullscreen background image */}
-        <div 
-          className="absolute inset-0 cursor-pointer"
-          onClick={handleImageClick}
+      <section className="relative h-[100dvh] w-full flex flex-col items-center justify-center overflow-hidden bg-luxury-black">
+        {/* Simple Background Image */}
+        <div
+          className="absolute inset-0 cursor-pointer overflow-hidden"
+          onClick={() => setIsFullscreen(true)}
         >
           <img
             src={imageUrl}
@@ -58,35 +45,28 @@ export function HeroSection({ section, heroImageUrl }: HeroSectionProps) {
             className="w-full h-full object-cover"
             loading="eager"
           />
-          {/* Dark overlay for text readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
+          {/* Subtle Overlay */}
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOverlayTap();
+            }}
+          />
         </div>
 
-        {/* Content overlay */}
-        <div className="relative z-10 text-center px-6 mt-auto pb-20 md:pb-24">
-          {/* Name - tappable for secret admin access */}
-          <h1 
-            className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white tracking-wide drop-shadow-lg opacity-0 animate-fade-in-up cursor-default"
-            style={{ animationDelay: '0.2s' }}
-            onClick={handleNameTap}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && handleNameTap()}
-          >
-            {title || 'Your Name'}
-          </h1>
+        {/* Text Content */}
+        {/* Text Content Removed by User Request */}
 
-          {/* Tagline */}
-          <p 
-            className="text-lg md:text-xl text-white/90 mt-4 max-w-md mx-auto drop-shadow-md opacity-0 animate-fade-in-up"
-            style={{ animationDelay: '0.4s' }}
-          >
-            {tagline || 'A journey of love begins here'}
-          </p>
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 animate-bounce opacity-80 cursor-default">
+          <span className="text-[10px] uppercase tracking-[0.3em] font-medium text-white/60">
+            {language === 'en' ? 'Explore' : 'તપાસો'}
+          </span>
+          <ChevronDown className="w-5 h-5 text-white/80" />
         </div>
       </section>
 
-      {/* Fullscreen image modal */}
       <FullscreenImageModal
         isOpen={isFullscreen}
         onClose={() => setIsFullscreen(false)}

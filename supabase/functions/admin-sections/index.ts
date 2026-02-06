@@ -1,21 +1,29 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// @ts-ignore: Deno imports
+import { serve } from "http/server.ts";
+// @ts-ignore: Deno imports
+import { createClient } from "supabase-js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { 
+      status: 204,
+      headers: corsHeaders 
+    });
   }
 
   try {
+    // @ts-ignore: Deno runtime
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    // @ts-ignore: Deno runtime
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { action, section, id, orderedIds } = await req.json();
@@ -46,7 +54,7 @@ serve(async (req) => {
     // Update a section
     if (action === 'update') {
       const { id: sectionId, ...updateData } = section;
-      
+
       const { data, error } = await supabase
         .from('sections')
         .update(updateData)
@@ -178,7 +186,7 @@ serve(async (req) => {
     // Reorder sections
     if (action === 'reorder') {
       // Update order indices
-      const updates = orderedIds.map((sectionId: string, index: number) => 
+      const updates = orderedIds.map((sectionId: string, index: number) =>
         supabase
           .from('sections')
           .update({ order_index: index })
@@ -186,7 +194,7 @@ serve(async (req) => {
       );
 
       const results = await Promise.all(updates);
-      
+
       const hasError = results.some(r => r.error);
       if (hasError) {
         console.error('Error reordering sections');
