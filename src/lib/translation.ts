@@ -49,7 +49,6 @@ export const translations = {
         loading: 'Loading...',
         somethingWentWrong: 'Something went wrong',
         unableToLoad: 'Unable to load content. Please try again later.',
-        madeWithLove: 'Made with love',
         explore: 'Explore',
         call: 'Call',
 
@@ -148,7 +147,6 @@ export const translations = {
         loading: 'લોડ થઈ રહ્યું છે...',
         somethingWentWrong: 'કંઈક ખોટું થયું',
         unableToLoad: 'સામગ્રી લોડ કરવામાં અસમર્થ. કૃપા કરીને પછીથી પ્રયાસ કરો.',
-        madeWithLove: 'પ્રેમ સાથે બનાવેલ',
         explore: 'તપાસો',
         call: 'કોલ કરો',
 

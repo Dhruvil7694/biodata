@@ -83,7 +83,6 @@ export default function Index() {
 
         {/* Footer */}
         <footer className="py-8 text-center text-sm text-muted-foreground bg-luxury-cream">
-          <p>{language === 'en' ? 'Made with love' : 'પ્રેમ સાથે બનાવેલ'}</p>
         </footer>
       </main>
 
