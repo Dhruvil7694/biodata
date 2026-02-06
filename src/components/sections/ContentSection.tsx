@@ -38,7 +38,8 @@ export function ContentSection({ section, index }: ContentSectionProps) {
   // Check if this is a contact section
   const isContactSection = section.type === SECTION_TYPES.CONTACT;
 
-  // Parse contact info from content (stored as JSON)
+  // Parse content - try JSON first for key-value pairs, fallback to text
+  const parsedContent = parseContent(content);
   const contactInfo = isContactSection ? parseContactContent(content) : null;
 
   return (
@@ -46,17 +47,17 @@ export function ContentSection({ section, index }: ContentSectionProps) {
       ref={sectionRef}
       className={`section-container ${index % 2 === 0 ? 'bg-background' : 'bg-luxury-cream'}`}
     >
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-2xl mx-auto">
         {/* Section divider */}
         <div 
-          className={`section-divider mb-8 md:mb-12 transition-all duration-700 ${
+          className={`section-divider mb-8 md:mb-10 transition-all duration-700 ${
             isVisible ? 'opacity-100 w-16' : 'opacity-0 w-0'
           }`}
         />
 
         {/* Title */}
         <h2 
-          className={`section-title text-center transition-all duration-700 delay-100 ${
+          className={`section-title text-center mb-8 transition-all duration-700 delay-100 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
@@ -64,26 +65,53 @@ export function ContentSection({ section, index }: ContentSectionProps) {
         </h2>
 
         {/* Content */}
-        {isContactSection && contactInfo ? (
-          <div 
-            className={`flex flex-col items-center gap-4 transition-all duration-700 delay-200 ${
-              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-            }`}
-          >
-            <p className="section-content text-center mb-6">{content}</p>
-            <ContactLinks contactInfo={contactInfo} />
-          </div>
-        ) : (
-          <p 
-            className={`section-content text-center mx-auto transition-all duration-700 delay-200 ${
-              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-            }`}
-          >
-            {content}
-          </p>
-        )}
+        <div 
+          className={`transition-all duration-700 delay-200 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          {isContactSection && contactInfo ? (
+            <div className="flex flex-col items-center gap-4">
+              {parsedContent.type === 'text' && (
+                <p className="section-content text-center mb-6">{parsedContent.text}</p>
+              )}
+              <ContactLinks contactInfo={contactInfo} />
+            </div>
+          ) : parsedContent.type === 'keyvalue' ? (
+            <KeyValueDisplay data={parsedContent.data} />
+          ) : (
+            <p className="section-content text-center mx-auto">
+              {parsedContent.text}
+            </p>
+          )}
+        </div>
       </div>
     </section>
+  );
+}
+
+// Key-Value Display Component
+interface KeyValueDisplayProps {
+  data: Record<string, string>;
+}
+
+function KeyValueDisplay({ data }: KeyValueDisplayProps) {
+  return (
+    <div className="space-y-3">
+      {Object.entries(data).map(([key, value]) => (
+        <div 
+          key={key} 
+          className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 py-2 border-b border-border/50 last:border-0"
+        >
+          <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider min-w-[140px] shrink-0">
+            {key}
+          </span>
+          <span className="text-base text-foreground">
+            {value || '—'}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -133,14 +161,36 @@ function ContactLinks({ contactInfo }: ContactLinksProps) {
   );
 }
 
+type ParsedContent = 
+  | { type: 'text'; text: string }
+  | { type: 'keyvalue'; data: Record<string, string> };
+
+function parseContent(content: string | null): ParsedContent {
+  if (!content) return { type: 'text', text: '' };
+  
+  // Try to parse as JSON for key-value pairs
+  try {
+    const parsed = JSON.parse(content);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      // Check if it's a contact info object
+      if ('whatsapp' in parsed || 'email' in parsed || 'phone' in parsed) {
+        return { type: 'text', text: '' };
+      }
+      return { type: 'keyvalue', data: parsed };
+    }
+  } catch {
+    // Not JSON, treat as text
+  }
+  
+  return { type: 'text', text: content };
+}
+
 function parseContactContent(content: string | null): { whatsapp?: string; email?: string; phone?: string } | null {
   if (!content) return null;
   
-  // Try to parse as JSON first
   try {
     return JSON.parse(content);
   } catch {
-    // If not JSON, return null (content is just text)
     return null;
   }
 }
