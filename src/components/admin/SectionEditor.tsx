@@ -491,11 +491,16 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
                           <div className="space-y-1">
                             <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1">Value (EN)</label>
                             <div className="relative group/dob">
-                              <input
-                                type="text"
+                              <textarea
                                 value={field.value_en}
                                 onChange={(e) => handleFieldChange(field.id, { value_en: e.target.value })}
-                                className="w-full bg-card border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none"
+                                className="w-full bg-card border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none min-h-[40px] resize-none"
+                                rows={1}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                }}
                                 placeholder={['dob', 'd.o.b', 'birth date', 'birthdate', 'birth'].includes(field.key_en.toLowerCase()) ? "DD/MM/YYYY" : "Name"}
                               />
                               {['dob', 'd.o.b', 'birth date', 'birthdate', 'birth'].includes(field.key_en.toLowerCase()) && (
@@ -529,11 +534,16 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
                                 className="bg-card border border-dashed rounded-lg px-3 py-1.5 text-[11px] outline-none"
                                 placeholder="Sub-Label (e.g. Occupation)"
                               />
-                              <input
-                                type="text"
+                              <textarea
                                 value={sub.value_en}
                                 onChange={(e) => handleSubFieldChange(field.id, sub.id, { value_en: e.target.value })}
-                                className="bg-card border border-dashed rounded-lg px-3 py-1.5 text-[11px] outline-none"
+                                className="bg-card border border-dashed rounded-lg px-3 py-1.5 text-[11px] outline-none min-h-[34px] resize-none"
+                                rows={1}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                }}
                                 placeholder="Sub-Value"
                               />
                               <button
@@ -570,11 +580,16 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
                           <div className="space-y-1">
                             <label className="text-[9px] font-bold text-luxury-gold uppercase tracking-widest px-1">કિંમત (GU)</label>
                             <div className="relative group/dob-gu">
-                              <input
-                                type="text"
+                              <textarea
                                 value={field.value_gu}
                                 onChange={(e) => handleFieldChange(field.id, { value_gu: e.target.value })}
-                                className="w-full bg-luxury-gold/5 border-luxury-gold/20 border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none font-sera"
+                                className="w-full bg-luxury-gold/5 border-luxury-gold/20 border rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-luxury-gold outline-none font-sera min-h-[40px] resize-none"
+                                rows={1}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                }}
                                 placeholder={['dob', 'd.o.b', 'birth date', 'birthdate', 'birth'].includes(field.key_en.toLowerCase()) ? "DD/MM/YYYY" : "સોફ્ટવેર એન્જિનિયર"}
                               />
                               {['dob', 'd.o.b', 'birth date', 'birthdate', 'birth'].includes(field.key_en.toLowerCase()) && (
@@ -608,11 +623,16 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
                                 className="bg-luxury-gold/5 border-luxury-gold/15 border-dashed border rounded-lg px-3 py-1.5 text-[11px] outline-none font-sera"
                                 placeholder="પેટા-લેબલ"
                               />
-                              <input
-                                type="text"
+                              <textarea
                                 value={sub.value_gu}
                                 onChange={(e) => handleSubFieldChange(field.id, sub.id, { value_gu: e.target.value })}
-                                className="bg-luxury-gold/5 border-luxury-gold/15 border-dashed border rounded-lg px-3 py-1.5 text-[11px] outline-none font-sera"
+                                className="bg-luxury-gold/5 border-luxury-gold/15 border-dashed border rounded-lg px-3 py-1.5 text-[11px] outline-none font-sera min-h-[34px] resize-none"
+                                rows={1}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                }}
                                 placeholder="પેટા-કિંમત"
                               />
                             </div>

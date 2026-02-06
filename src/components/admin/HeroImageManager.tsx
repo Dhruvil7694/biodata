@@ -72,11 +72,16 @@ export function HeroImageManager() {
                                 Image URL Source
                             </label>
                             <div className="flex items-stretch gap-2">
-                                <input
-                                    type="text"
+                                <textarea
                                     value={imageUrl}
                                     onChange={(e) => setImageUrl(e.target.value)}
-                                    className="flex-1 admin-input text-xs py-2.5"
+                                    className="flex-1 admin-input text-xs py-2.5 resize-none min-h-[44px]"
+                                    rows={1}
+                                    onInput={(e) => {
+                                        const target = e.target as HTMLTextAreaElement;
+                                        target.style.height = 'auto';
+                                        target.style.height = `${target.scrollHeight}px`;
+                                    }}
                                     placeholder="https://images.unsplash.com/..."
                                 />
                                 <button

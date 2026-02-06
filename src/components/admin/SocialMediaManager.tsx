@@ -166,9 +166,9 @@ export function SocialMediaManager() {
                                     })()}
                                     {platformDef?.name || link.platform}
                                 </span>
-                                <div className="flex flex-col truncate">
-                                    <span className="text-sm font-medium truncate">{link.username}</span>
-                                    <span className="text-[10px] text-muted-foreground truncate opacity-70">{link.url}</span>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-sm font-medium break-words">{link.username}</span>
+                                    <span className="text-[10px] text-muted-foreground break-all opacity-70">{link.url}</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">

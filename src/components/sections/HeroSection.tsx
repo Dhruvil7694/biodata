@@ -44,7 +44,7 @@ export function HeroSection({ section, heroImageUrl, socialLinks }: HeroSectionP
           <img
             src={imageUrl}
             alt="Profile"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center"
             loading="eager"
           />
           {/* Subtle Overlay */}
@@ -57,20 +57,9 @@ export function HeroSection({ section, heroImageUrl, socialLinks }: HeroSectionP
           />
         </div>
 
-        {/* Social Icons Overlay */}
-        {socialLinks && socialLinks.length > 0 && (
-          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 w-full px-4 flex justify-center py-2 animate-reveal" style={{ animationDelay: '0.8s' }}>
-            <div className="bg-white/5 backdrop-blur-md px-6 py-2 rounded-full border border-white/10 shadow-2xl">
-              <SocialIcons
-                links={socialLinks}
-                className="gap-6 scale-90"
-              />
-            </div>
-          </div>
-        )}
 
         {/* Scroll Indicator */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 animate-bounce opacity-80 cursor-default">
+        <div className="absolute bottom-10 inset-x-0 z-20 flex flex-col items-center gap-2 animate-bounce opacity-80 cursor-default">
           <span className="text-[10px] uppercase tracking-[0.3em] font-medium text-white/60">
             {language === 'en' ? 'Explore' : 'તપાસો'}
           </span>
