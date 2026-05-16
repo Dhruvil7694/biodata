@@ -115,6 +115,7 @@ export default function Index() {
           <HeroSection
             section={heroSection}
             heroImageUrl={adminSettings?.hero_image_url}
+            heroImagePosition={adminSettings?.hero_image_position}
             socialLinks={adminSettings?.social_links}
           />
         )}

@@ -20,7 +20,7 @@ export function useAdminSettings() {
     });
 
     const updateSettings = useMutation({
-        mutationFn: async (updates: { hero_image_url?: string; site_title?: string; social_links?: any[]; is_privacy_mode?: boolean }) => {
+        mutationFn: async (updates: { hero_image_url?: string; hero_image_position?: string; site_title?: string; social_links?: any[]; is_privacy_mode?: boolean }) => {
             if (!settings?.id) {
                 throw new Error('Admin settings not initialized. Please refresh the page.');
             }

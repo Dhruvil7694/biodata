@@ -10,10 +10,11 @@ import { SocialIcons } from '@/components/SocialIcons';
 interface HeroSectionProps {
   section: Section;
   heroImageUrl?: string | null;
+  heroImagePosition?: string | null;
   socialLinks?: any[];
 }
 
-export function HeroSection({ section, heroImageUrl, socialLinks }: HeroSectionProps) {
+export function HeroSection({ section, heroImageUrl, heroImagePosition, socialLinks }: HeroSectionProps) {
   const { language } = useLanguage();
   const { showAdminLogin } = useAdmin();
   const [tapCount, setTapCount] = useState(0);
@@ -21,6 +22,19 @@ export function HeroSection({ section, heroImageUrl, socialLinks }: HeroSectionP
   const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const imageUrl = heroImageUrl || defaultPortrait;
+
+  // Parse focal point
+  let focalPoint = "center";
+  if (heroImagePosition) {
+    try {
+      const pos = JSON.parse(heroImagePosition);
+      if (typeof pos === 'object' && pos !== null && 'x' in pos && 'y' in pos) {
+        focalPoint = `${pos.x}% ${pos.y}%`;
+      }
+    } catch (e) {
+      console.error("Error parsing hero image position", e);
+    }
+  }
 
   // Secret admin trigger on the main overlay
   const handleOverlayTap = () => {
@@ -44,7 +58,8 @@ export function HeroSection({ section, heroImageUrl, socialLinks }: HeroSectionP
           <img
             src={imageUrl}
             alt="Profile"
-            className="w-full h-full object-cover object-center"
+            className="w-full h-full object-cover"
+            style={{ objectPosition: focalPoint }}
             loading="eager"
           />
           {/* Subtle Overlay */}
