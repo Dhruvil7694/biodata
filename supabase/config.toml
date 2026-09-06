@@ -1,4 +1,4 @@
-project_id = "gyupyuyiilwfewzusoix"
+project_id = "ektofyrvnqoxojomnong"
 [functions.translate-gujarati]
 enabled = true
 verify_jwt = true
@@ -15,3 +15,15 @@ entrypoint = "./functions/admin-upload/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/admin-upload/*.html" ]
+
+[functions.admin-auth]
+enabled = true
+verify_jwt = false
+
+[functions.admin-sections]
+enabled = true
+verify_jwt = false
+
+[functions.admin-settings]
+enabled = true
+verify_jwt = false

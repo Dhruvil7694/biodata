@@ -46,18 +46,23 @@ function sectionTypeToTitle(type: string | undefined, fallback: string | null | 
 }
 
 function buildLanguageRows(section: any, orderIndex: number) {
+  const titleEn = (section.title_en || '').trim() || sectionTypeToTitle(section.type, null);
+  const titleGu = (section.title_gu || '').trim() || titleEn;
+
   return [
     {
-      title: sectionTypeToTitle(section.type, section.title_en),
-      subtitle: null,
+      // Store the human-facing title in `title`. Keep a category hint in
+      // `subtitle` so type detection still works after display-title edits.
+      title: titleEn,
+      subtitle: sectionTypeToTitle(section.type, null),
       content: section.content_en ?? '',
       order_index: orderIndex,
       visible: section.visible ?? true,
       language: 'en',
     },
     {
-      title: section.title_gu || section.title_en || sectionTypeToTitle(section.type, null),
-      subtitle: null,
+      title: titleGu,
+      subtitle: sectionTypeToTitle(section.type, null),
       content: section.content_gu ?? section.content_en ?? '',
       order_index: orderIndex,
       visible: section.visible ?? true,

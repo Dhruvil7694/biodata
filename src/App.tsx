@@ -12,7 +12,8 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1, // Retry failed queries once (not 3x default)
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 30, // 30s — keep admin edits visible on the live site quickly
+      refetchOnWindowFocus: true,
     },
     mutations: {
       retry: false, // Do not retry mutations (manual admin action required)

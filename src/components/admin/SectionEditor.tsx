@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Section } from '@/lib/types';
 import { useUpdateSection } from '@/hooks/useSections';
-import { X, Save, Languages, Loader2, Plus, Trash2, Type, LayoutGrid, Calendar as CalendarIcon, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
+import { X, Save, Languages, Loader2, Plus, Trash2, Type, LayoutGrid, Calendar as CalendarIcon, ArrowUp, ArrowDown, GripVertical, Check, CircleAlert } from 'lucide-react';
 import { translateToGujarati } from '@/lib/translation';
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,6 +27,81 @@ interface Field {
   value_en: string;
   value_gu: string;
   subs: SubField[];
+}
+
+type EditorFormData = {
+  title_en: string;
+  title_gu: string;
+  content_en: string;
+  content_gu: string;
+  type: string;
+  is_gold_medalist: boolean;
+};
+
+function buildPersistedContent(
+  editorMode: 'text' | 'fields',
+  formData: EditorFormData,
+  fields: Field[],
+) {
+  if (editorMode !== 'fields') {
+    return {
+      content_en: formData.content_en,
+      content_gu: formData.content_gu,
+    };
+  }
+
+  const dataEn: Record<string, unknown> = {};
+  const dataGu: Record<string, unknown> = {};
+  const keyLabelsGu: Record<string, string> = {};
+
+  fields.forEach((f) => {
+    if (!f.key_en) return;
+
+    dataEn[f.key_en] = f.value_en;
+    dataGu[f.key_en] = f.value_gu || f.value_en;
+
+    f.subs.forEach((s, i) => {
+      if (!s.key_en) return;
+      dataEn[`_sub_k_${i}_${f.key_en}`] = s.key_en;
+      dataGu[`_sub_k_${i}_${f.key_en}`] = s.key_gu || s.key_en;
+      dataEn[`_sub_v_${i}_${f.key_en}`] = s.value_en;
+      dataGu[`_sub_v_${i}_${f.key_en}`] = s.value_gu || s.value_en;
+    });
+
+    if (f.key_gu) {
+      keyLabelsGu[f.key_en] = f.key_gu;
+    }
+  });
+
+  if (formData.is_gold_medalist) {
+    dataEn._is_gold_medalist = true;
+    dataGu._is_gold_medalist = true;
+  }
+
+  if (Object.keys(keyLabelsGu).length > 0) {
+    dataGu._key_labels = keyLabelsGu;
+  }
+
+  return {
+    content_en: JSON.stringify(dataEn),
+    content_gu: JSON.stringify(dataGu),
+  };
+}
+
+function createEditorSnapshot(
+  editorMode: 'text' | 'fields',
+  formData: EditorFormData,
+  fields: Field[],
+) {
+  const content = buildPersistedContent(editorMode, formData, fields);
+  return JSON.stringify({
+    editorMode,
+    title_en: formData.title_en,
+    title_gu: formData.title_gu,
+    type: formData.type,
+    is_gold_medalist: formData.is_gold_medalist,
+    ...content,
+  });
 }
 
 export function SectionEditor({ section, onClose }: SectionEditorProps) {
@@ -92,24 +167,24 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
   const initialFields = getInitialFields();
   const [editorMode, setEditorMode] = useState<'text' | 'fields'>(initialFields.length > 0 ? 'fields' : 'text');
 
-  const [formData, setFormData] = useState({
-    title_en: section.title_en || '',
-    title_gu: section.title_gu || '',
-    content_en: section.content_en || '',
-    content_gu: section.content_gu || '',
-    type: section.type,
-    is_gold_medalist: false, // New field for Education
-  });
-
-  // Handle initial gold medalist status from content
-  useEffect(() => {
+  const [formData, setFormData] = useState<EditorFormData>(() => {
+    let isGoldMedalist = false;
     try {
       const parsed = JSON.parse(section.content_en || '{}');
-      if (parsed._is_gold_medalist) {
-        setFormData(prev => ({ ...prev, is_gold_medalist: true }));
-      }
-    } catch (e) { }
-  }, [section.content_en]);
+      isGoldMedalist = Boolean(parsed._is_gold_medalist);
+    } catch {
+      isGoldMedalist = false;
+    }
+
+    return {
+      title_en: section.title_en || '',
+      title_gu: section.title_gu || '',
+      content_en: section.content_en || '',
+      content_gu: section.content_gu || '',
+      type: section.type,
+      is_gold_medalist: isGoldMedalist,
+    };
+  });
 
   const [fields, setFields] = useState<Field[]>(initialFields.length > 0 ? initialFields : [
     { id: '1', key_en: '', key_gu: '', value_en: '', value_gu: '', subs: [] }
@@ -117,10 +192,59 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
 
   const [isAutoTranslate, setIsAutoTranslate] = useState(true);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  const [baselineSnapshot, setBaselineSnapshot] = useState(() => {
+    let isGoldMedalist = false;
+    try {
+      const parsed = JSON.parse(section.content_en || '{}');
+      isGoldMedalist = Boolean(parsed._is_gold_medalist);
+    } catch {
+      isGoldMedalist = false;
+    }
+
+    const initialForm: EditorFormData = {
+      title_en: section.title_en || '',
+      title_gu: section.title_gu || '',
+      content_en: section.content_en || '',
+      content_gu: section.content_gu || '',
+      type: section.type,
+      is_gold_medalist: isGoldMedalist,
+    };
+
+    return createEditorSnapshot(
+      initialFields.length > 0 ? 'fields' : 'text',
+      initialForm,
+      initialFields.length > 0 ? initialFields : [
+        { id: '1', key_en: '', key_gu: '', value_en: '', value_gu: '', subs: [] }
+      ],
+    );
+  });
   const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
   const translationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastTranslatedTitleRef = useRef('');
+  const lastTranslatedTitleRef = useRef(section.title_en || '');
   const autoTranslatedSourceRef = useRef<Record<string, string>>({});
+  const savedToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Seed translation memory so the first auto-translate pass does not mark the form dirty.
+  useEffect(() => {
+    const seed: Record<string, string> = {};
+    fields.forEach((f) => {
+      if (f.key_en.trim()) seed[`${f.id}:key`] = f.key_en.trim();
+      if (f.value_en.trim()) seed[`${f.id}:value`] = f.value_en.trim();
+      f.subs.forEach((s) => {
+        if (s.key_en.trim()) seed[`${s.id}:key`] = s.key_en.trim();
+        if (s.value_en.trim()) seed[`${s.id}:value`] = s.value_en.trim();
+      });
+    });
+    autoTranslatedSourceRef.current = seed;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once from initial editor state
+  }, []);
+
+  const currentSnapshot = useMemo(
+    () => createEditorSnapshot(editorMode, formData, fields),
+    [editorMode, formData, fields],
+  );
+  const isDirty = currentSnapshot !== baselineSnapshot;
 
   const getAutoTranslatedValue = (id: string, source: string, current: string, translated: string) => {
     const normalizedSource = source.trim();
@@ -339,64 +463,73 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
     setFields(newFields);
   };
 
-  const handleSave = () => {
-    let finalContentEn = formData.content_en;
-    let finalContentGu = formData.content_gu;
+  const handleClose = useCallback(() => {
+    if (isDirty && !window.confirm('You have unsaved changes. Discard them?')) {
+      return;
+    }
+    onClose();
+  }, [isDirty, onClose]);
 
-    if (editorMode === 'fields') {
-      const dataEn: Record<string, any> = {};
-      const dataGu: Record<string, any> = {};
-      const keyLabelsGu: Record<string, string> = {}; // Store Gujarati key translations
+  const handleSave = useCallback(async () => {
+    if (!isDirty || updateSection.isPending) return;
 
-      fields.forEach(f => {
-        if (f.key_en) {
-          // Always use English key for both languages (for consistency)
-          dataEn[f.key_en] = f.value_en;
-          dataGu[f.key_en] = f.value_gu || f.value_en;
+    const { content_en: finalContentEn, content_gu: finalContentGu } = buildPersistedContent(
+      editorMode,
+      formData,
+      fields,
+    );
 
-          // Store multiple sub-fields using index-based metadata
-          f.subs.forEach((s, i) => {
-            if (s.key_en) {
-              dataEn[`_sub_k_${i}_${f.key_en}`] = s.key_en;
-              dataGu[`_sub_k_${i}_${f.key_en}`] = s.key_gu || s.key_en;
-              dataEn[`_sub_v_${i}_${f.key_en}`] = s.value_en;
-              dataGu[`_sub_v_${i}_${f.key_en}`] = s.value_gu || s.value_en;
-            }
-          });
-
-          // Store the Gujarati translation of the key label
-          if (f.key_gu) {
-            keyLabelsGu[f.key_en] = f.key_gu;
-          }
-        }
+    try {
+      await updateSection.mutateAsync({
+        id: section.id,
+        title_en: formData.title_en,
+        title_gu: formData.title_gu,
+        content_en: finalContentEn,
+        content_gu: finalContentGu,
+        type: formData.type,
       });
 
-      // Add gold medalist flag if enabled
-      if (formData.is_gold_medalist) {
-        dataEn._is_gold_medalist = true;
-        dataGu._is_gold_medalist = true;
-      }
+      const nextSnapshot = createEditorSnapshot(
+        editorMode,
+        {
+          ...formData,
+          content_en: finalContentEn,
+          content_gu: finalContentGu,
+        },
+        fields,
+      );
+      setBaselineSnapshot(nextSnapshot);
+      setFormData((prev) => ({
+        ...prev,
+        content_en: finalContentEn,
+        content_gu: finalContentGu,
+      }));
+      setJustSaved(true);
 
-      // Store key labels in Gujarati data for display
-      if (Object.keys(keyLabelsGu).length > 0) {
-        dataGu._key_labels = keyLabelsGu;
-      }
-
-      finalContentEn = JSON.stringify(dataEn);
-      finalContentGu = JSON.stringify(dataGu);
+      if (savedToastTimeoutRef.current) clearTimeout(savedToastTimeoutRef.current);
+      savedToastTimeoutRef.current = setTimeout(() => setJustSaved(false), 2500);
+    } catch {
+      // Toast is handled by the mutation.
     }
+  }, [editorMode, fields, formData, isDirty, section.id, updateSection]);
 
-    updateSection.mutate({
-      id: section.id,
-      title_en: formData.title_en,
-      title_gu: formData.title_gu,
-      content_en: finalContentEn,
-      content_gu: finalContentGu,
-      type: formData.type,
-    }, {
-      onSuccess: () => onClose(),
-    });
-  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void handleSave();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleSave]);
+
+  useEffect(() => {
+    return () => {
+      if (savedToastTimeoutRef.current) clearTimeout(savedToastTimeoutRef.current);
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 bg-foreground/50 backdrop-blur-sm flex items-center justify-center p-0 lg:p-4 animate-fade-in">
@@ -414,7 +547,7 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
               </p>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="sm:hidden ml-auto p-2 rounded-full hover:bg-secondary transition-colors"
             >
               <X className="w-5 h-5" />
@@ -441,7 +574,7 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
               </button>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="hidden sm:block p-2 rounded-full hover:bg-secondary transition-colors"
             >
               <X className="w-5 h-5" />
@@ -777,27 +910,58 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
 
         {/* Footer */}
         <div className="bg-muted/30 border-t px-4 md:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p className="text-[9px] md:text-[10px] text-muted-foreground uppercase tracking-widest text-center">
-            {editorMode === 'fields' ? `${fields.length} Structured Fields` : 'Paragraph Mode'}
-          </p>
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+            <p className="text-[9px] md:text-[10px] text-muted-foreground uppercase tracking-widest text-center">
+              {editorMode === 'fields' ? `${fields.length} Structured Fields` : 'Paragraph Mode'}
+            </p>
+            {isDirty ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-700">
+                <CircleAlert className="h-3 w-3" />
+                Unsaved changes
+              </span>
+            ) : justSaved ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-700">
+                <Check className="h-3 w-3" />
+                All changes saved
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                No changes
+              </span>
+            )}
+          </div>
           <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="admin-button-secondary flex-1 sm:flex-none px-4 md:px-6"
             >
-              Cancel
+              {isDirty ? 'Discard' : 'Close'}
             </button>
             <button
-              onClick={handleSave}
-              disabled={updateSection.isPending}
-              className="admin-button-primary flex-2 sm:flex-none px-6 md:px-10 flex items-center justify-center gap-2 shadow-lg hover:shadow-luxury-gold/20"
+              onClick={() => void handleSave()}
+              disabled={!isDirty || updateSection.isPending}
+              className={`admin-button-primary flex-2 sm:flex-none px-6 md:px-10 flex items-center justify-center gap-2 shadow-lg transition ${
+                isDirty
+                  ? 'hover:shadow-luxury-gold/20'
+                  : 'opacity-50 cursor-not-allowed shadow-none'
+              }`}
             >
               {updateSection.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
+              ) : justSaved && !isDirty ? (
+                <Check className="w-4 h-4" />
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              <span>{updateSection.isPending ? 'Saving...' : 'Save Changes'}</span>
+              <span>
+                {updateSection.isPending
+                  ? 'Saving...'
+                  : isDirty
+                    ? 'Save Changes'
+                    : justSaved
+                      ? 'Saved'
+                      : 'Save Changes'}
+              </span>
             </button>
           </div>
         </div>

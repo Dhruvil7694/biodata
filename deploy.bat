@@ -17,7 +17,7 @@ echo OK: Supabase CLI found
 echo.
 
 echo Linking project...
-call npx supabase link --project-ref gyupyuyiilwfewzusoix
+call npx supabase link --project-ref ektofyrvnqoxojomnong
 if errorlevel 1 (
     echo ERROR: Failed to link project
     echo Make sure you're logged in: npx supabase login

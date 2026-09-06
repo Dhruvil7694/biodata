@@ -81,13 +81,18 @@ function normalizeSections(rows: SectionRow[]): Section[] {
       const base = group.en || group.fallback || group.gu;
       const gu = group.gu || base;
 
+      // `title` is the human-facing heading. `subtitle` may hold a category
+      // hint used for type detection after admin saves.
+      const titleEn = base?.title || base?.subtitle || 'Section';
+      const titleGu = gu?.title || gu?.subtitle || base?.title || 'વિભાગ';
+
       return {
         id: base?.id || `section-${orderIndex}`,
         order_index: orderIndex,
         visible: base?.visible ?? true,
-        type: toSectionType(base?.title),
-        title_en: base?.title || base?.subtitle || 'Section',
-        title_gu: gu?.title || gu?.subtitle || base?.title || 'વિભાગ',
+        type: toSectionType(base?.subtitle || base?.title || titleEn),
+        title_en: titleEn,
+        title_gu: titleGu,
         content_en: base?.content || '',
         content_gu: gu?.content || base?.content || '',
         created_at: base?.created_at || new Date().toISOString(),
@@ -152,8 +157,27 @@ export function useUpdateSection() {
       return response.data;
     },
     retry: false, // Do not retry mutations
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sections'] });
+    onSuccess: async (_data, variables) => {
+      // Optimistically merge into admin + public caches so the live site reflects
+      // edits immediately instead of waiting on a slow refetch / stale 5m cache.
+      const patchSection = (sections: Section[] | undefined) => {
+        if (!sections) return sections;
+        return sections.map((item) =>
+          item.id === variables.id
+            ? {
+                ...item,
+                ...variables,
+                updated_at: new Date().toISOString(),
+              }
+            : item
+        );
+      };
+
+      queryClient.setQueryData<Section[]>(['sections', 'all'], patchSection);
+      queryClient.setQueryData<Section[]>(['sections', false], patchSection);
+      queryClient.setQueryData<Section[]>(['sections', true], patchSection);
+
+      await queryClient.invalidateQueries({ queryKey: ['sections'] });
       toast({
         title: 'Section updated',
         description: 'Your changes have been saved.',
