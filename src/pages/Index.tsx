@@ -80,7 +80,7 @@ export default function Index() {
 
   // Update document title based on language
   useEffect(() => {
-    document.title = language === 'en' ? "Dhruvil's biodata" : "ધ્રુવિલનો બાયોડેટા";
+    document.title = language === 'en' ? "Dhruvil's Biodata" : "ધ્રુવિલનો બાયોડેટા";
   }, [language]);
 
   const privacyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
