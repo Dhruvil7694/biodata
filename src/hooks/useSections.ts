@@ -1,13 +1,106 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Section } from '@/lib/types';
+import { Section, SECTION_TYPES } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+
+type SectionRow = Section & {
+  title?: string | null;
+  subtitle?: string | null;
+  content?: string | null;
+  language?: string | null;
+};
+
+type FunctionErrorWithContext = Error & {
+  context?: {
+    json?: () => Promise<unknown>;
+  };
+};
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+async function getFunctionErrorMessage(error: unknown, fallback: string) {
+  const functionError = error as FunctionErrorWithContext;
+  const context = functionError?.context;
+
+  if (context?.json) {
+    try {
+      const body = await context.json();
+
+      if (body && typeof body === 'object' && 'error' in body) {
+        const message = (body as { error?: unknown }).error;
+        if (typeof message === 'string' && message.trim()) return message;
+      }
+    } catch {
+      // Fall through to the generic error message.
+    }
+  }
+
+  return getErrorMessage(error, fallback);
+}
+
+function toSectionType(title?: string | null): string {
+  const normalized = (title || '').toLowerCase();
+
+  if (normalized.includes('contact')) return SECTION_TYPES.CONTACT;
+  if (normalized.includes('family')) return SECTION_TYPES.FAMILY;
+  if (normalized.includes('education') || normalized.includes('career')) return SECTION_TYPES.CAREER;
+  if (normalized.includes('interest') || normalized.includes('lifestyle')) return SECTION_TYPES.LIFESTYLE;
+  if (normalized.includes('goal')) return SECTION_TYPES.GOALS;
+  if (normalized.includes('philosophy')) return SECTION_TYPES.PHILOSOPHY;
+
+  return SECTION_TYPES.ABOUT;
+}
+
+function normalizeSections(rows: SectionRow[]): Section[] {
+  if (rows.length === 0 || 'title_en' in rows[0]) {
+    return rows as Section[];
+  }
+
+  const grouped = new Map<number, { en?: SectionRow; gu?: SectionRow; fallback?: SectionRow }>();
+
+  rows.forEach((row) => {
+    const orderIndex = row.order_index ?? 0;
+    const group = grouped.get(orderIndex) || {};
+
+    if (row.language === 'gu') {
+      group.gu = row;
+    } else if (row.language === 'en') {
+      group.en = row;
+    } else {
+      group.fallback = row;
+    }
+
+    grouped.set(orderIndex, group);
+  });
+
+  return Array.from(grouped.entries())
+    .sort(([left], [right]) => left - right)
+    .map(([orderIndex, group]) => {
+      const base = group.en || group.fallback || group.gu;
+      const gu = group.gu || base;
+
+      return {
+        id: base?.id || `section-${orderIndex}`,
+        order_index: orderIndex,
+        visible: base?.visible ?? true,
+        type: toSectionType(base?.title),
+        title_en: base?.title || base?.subtitle || 'Section',
+        title_gu: gu?.title || gu?.subtitle || base?.title || 'વિભાગ',
+        content_en: base?.content || '',
+        content_gu: gu?.content || base?.content || '',
+        created_at: base?.created_at || new Date().toISOString(),
+        updated_at: base?.updated_at || new Date().toISOString(),
+      };
+    });
+}
 
 export function useSections(includeHidden = false) {
   return useQuery({
     queryKey: ['sections', includeHidden],
     queryFn: async () => {
-      let query = supabase
+      const query = supabase
         .from('sections')
         .select('*')
         .order('order_index', { ascending: true });
@@ -18,14 +111,15 @@ export function useSections(includeHidden = false) {
       const { data, error } = await query;
       
       if (error) throw error;
-      return data as Section[];
+      return normalizeSections((data || []) as SectionRow[]);
     },
   });
 }
 
-export function useAllSections() {
+export function useAllSections(enabled = true) {
   return useQuery({
     queryKey: ['sections', 'all'],
+    enabled,
     queryFn: async () => {
       // For admin, fetch all sections including hidden ones
       const response = await supabase.functions.invoke('admin-sections', {
@@ -33,7 +127,7 @@ export function useAllSections() {
       });
       
       if (response.error) throw response.error;
-      return response.data.sections as Section[];
+      return normalizeSections((response.data.sections || []) as SectionRow[]);
     },
   });
 }
@@ -51,9 +145,13 @@ export function useUpdateSection() {
         }
       });
       
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw new Error(await getFunctionErrorMessage(response.error, 'Failed to update section.'));
+      }
+      if (response.data?.error) throw new Error(response.data.error);
       return response.data;
     },
+    retry: false, // Do not retry mutations
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sections'] });
       toast({
@@ -64,7 +162,7 @@ export function useUpdateSection() {
     onError: (error) => {
       toast({
         title: 'Error',
-        description: 'Failed to update section. Please try again.',
+        description: getErrorMessage(error, 'Failed to update section. Please try again.'),
         variant: 'destructive',
       });
       console.error('Update error:', error);
@@ -85,9 +183,13 @@ export function useCreateSection() {
         }
       });
       
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw new Error(await getFunctionErrorMessage(response.error, 'Failed to create section.'));
+      }
+      if (response.data?.error) throw new Error(response.data.error);
       return response.data;
     },
+    retry: false, // Do not retry mutations
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sections'] });
       toast({
@@ -98,7 +200,7 @@ export function useCreateSection() {
     onError: (error) => {
       toast({
         title: 'Error',
-        description: 'Failed to create section. Please try again.',
+        description: getErrorMessage(error, 'Failed to create section. Please try again.'),
         variant: 'destructive',
       });
       console.error('Create error:', error);
@@ -119,9 +221,13 @@ export function useDeleteSection() {
         }
       });
       
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw new Error(await getFunctionErrorMessage(response.error, 'Failed to delete section.'));
+      }
+      if (response.data?.error) throw new Error(response.data.error);
       return response.data;
     },
+    retry: false, // Do not retry mutations
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sections'] });
       toast({
@@ -132,7 +238,7 @@ export function useDeleteSection() {
     onError: (error) => {
       toast({
         title: 'Error',
-        description: 'Failed to delete section. Please try again.',
+        description: getErrorMessage(error, 'Failed to delete section. Please try again.'),
         variant: 'destructive',
       });
       console.error('Delete error:', error);
@@ -145,6 +251,7 @@ export function useReorderSections() {
   const { toast } = useToast();
 
   return useMutation({
+    retry: false, // Do not retry mutations
     mutationFn: async (orderedIds: string[]) => {
       const response = await supabase.functions.invoke('admin-sections', {
         body: { 
@@ -153,7 +260,10 @@ export function useReorderSections() {
         }
       });
       
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw new Error(await getFunctionErrorMessage(response.error, 'Failed to reorder sections.'));
+      }
+      if (response.data?.error) throw new Error(response.data.error);
       return response.data;
     },
     onSuccess: () => {
@@ -166,7 +276,7 @@ export function useReorderSections() {
     onError: (error) => {
       toast({
         title: 'Error',
-        description: 'Failed to reorder sections. Please try again.',
+        description: getErrorMessage(error, 'Failed to reorder sections. Please try again.'),
         variant: 'destructive',
       });
       console.error('Reorder error:', error);
@@ -179,6 +289,7 @@ export function useDuplicateSection() {
   const { toast } = useToast();
 
   return useMutation({
+    retry: false, // Do not retry mutations
     mutationFn: async (id: string) => {
       const response = await supabase.functions.invoke('admin-sections', {
         body: { 
@@ -187,7 +298,10 @@ export function useDuplicateSection() {
         }
       });
       
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw new Error(await getFunctionErrorMessage(response.error, 'Failed to duplicate section.'));
+      }
+      if (response.data?.error) throw new Error(response.data.error);
       return response.data;
     },
     onSuccess: () => {
@@ -200,7 +314,7 @@ export function useDuplicateSection() {
     onError: (error) => {
       toast({
         title: 'Error',
-        description: 'Failed to duplicate section. Please try again.',
+        description: getErrorMessage(error, 'Failed to duplicate section. Please try again.'),
         variant: 'destructive',
       });
       console.error('Duplicate error:', error);

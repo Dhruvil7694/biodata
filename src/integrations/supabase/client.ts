@@ -79,20 +79,20 @@ export async function checkSupabaseHealth(): Promise<{
       console.info(`[Supabase Health] Database connected - ${sectionsData?.length ?? 0} test row(s) returned`);
     }
 
-    // Test 2: Check if admin_settings exists (needed for auth)
-    const { data: adminData, error: adminError } = await supabase
-      .from('admin_settings')
+    // Test 2: Check if site_settings exists (public site configuration)
+    const { data: siteSettingsData, error: siteSettingsError } = await supabase
+      .from('site_settings')
       .select('id')
       .limit(1);
 
-    result.details.adminSettingsExists = !adminError && !!adminData && adminData.length > 0;
+    result.details.adminSettingsExists = !siteSettingsError && !!siteSettingsData && siteSettingsData.length > 0;
     
-    if (adminError) {
-      console.warn(`[Supabase Health] admin_settings check failed: ${adminError.message}`);
-    } else if (!adminData || adminData.length === 0) {
-      console.warn(`[Supabase Health] admin_settings table is empty - run INSERT_DEFAULT_DATA.sql`);
+    if (siteSettingsError) {
+      console.warn(`[Supabase Health] site_settings check failed: ${siteSettingsError.message}`);
+    } else if (!siteSettingsData || siteSettingsData.length === 0) {
+      console.warn(`[Supabase Health] site_settings table is empty - run the secure baseline migration`);
     } else {
-      console.info(`[Supabase Health] admin_settings exists with data`);
+      console.info(`[Supabase Health] site_settings exists with data`);
     }
 
     // Test 3: Edge Functions health check

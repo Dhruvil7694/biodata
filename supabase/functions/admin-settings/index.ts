@@ -9,6 +9,21 @@ const corsHeaders = {
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
+const allowedUpdateFields = new Set([
+    'site_title',
+    'hero_image_url',
+    'hero_image_urls',
+    'hero_image_position',
+    'is_privacy_mode',
+    'social_links',
+]);
+
+function sanitizeSettingsUpdates(updates: Record<string, unknown>) {
+    return Object.fromEntries(
+        Object.entries(updates || {}).filter(([key]) => allowedUpdateFields.has(key))
+    );
+}
+
 serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, {
@@ -24,39 +39,47 @@ serve(async (req: Request) => {
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        const { action, updates, id, sql } = await req.json();
+        const { action, updates, id } = await req.json();
 
         if (action === 'update') {
+            const safeUpdates = sanitizeSettingsUpdates(updates);
+
+            if (!id) {
+                return new Response(
+                    JSON.stringify({ error: 'Missing site settings id' }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+                );
+            }
+
+            if (Object.keys(safeUpdates).length === 0) {
+                return new Response(
+                    JSON.stringify({ error: 'No supported settings fields provided' }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+                );
+            }
+
             const { data, error } = await supabase
-                .from('admin_settings')
-                .update(updates)
+                .from('site_settings')
+                .update(safeUpdates)
                 .eq('id', id)
                 .select()
                 .single();
 
-            if (error) throw error;
-
-            return new Response(
-                JSON.stringify({ data }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-        }
-
-        if (action === 'raw_sql') {
-            // DANGEROUS: Only for emergency migration bypass. Remove after use or secure properly.
-            // This uses the service role key so it has full access.
-            // sql is already extracted above
-            const { error } = await supabase.rpc('exec_sql', { sql_query: sql });
-
             if (error) {
+                console.error('Error updating site settings:', error);
+
+                const message = error.code === '42703'
+                    ? 'Database schema is missing a required site_settings column. Run the latest Supabase migration, then redeploy this function.'
+                    : error.message;
+
                 return new Response(
-                    JSON.stringify({ error: error.message }),
-                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+                    JSON.stringify({ error: message, code: error.code }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
                 );
             }
 
             return new Response(
-                JSON.stringify({ success: true }),
+                JSON.stringify({ data }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }

@@ -1,19 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useAllSections, useUpdateSection, useDeleteSection, useDuplicateSection, useReorderSections, useCreateSection } from '@/hooks/useSections';
-import { Section, SECTION_TYPES } from '@/lib/types';
+import { Section } from '@/lib/types';
 import { X, LogOut, GripVertical, Eye, EyeOff, Edit2, Trash2, Copy, Plus, Settings } from 'lucide-react';
 import { SectionEditor } from './SectionEditor';
 import { PasswordChangeModal } from './PasswordChangeModal';
 import { HeroImageManager } from './HeroImageManager';
 import { SocialMediaManager } from './SocialMediaManager';
-import { useToast } from '@/hooks/use-toast';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { Switch } from '@/components/ui/switch';
-import { supabase } from '@/integrations/supabase/client';
 
 export function AdminPanel() {
   const { isAuthenticated, isAdminVisible, logout } = useAdmin();
+
+  if (!isAdminVisible || !isAuthenticated) return null;
+
+  return (
+    <AdminPanelContent logout={logout} />
+  );
+}
+
+function AdminPanelContent({ logout }: { logout: () => void }) {
   const { data: sections, isLoading, error } = useAllSections();
   const updateSection = useUpdateSection();
   const deleteSection = useDeleteSection();
@@ -25,28 +32,6 @@ export function AdminPanel() {
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-
-  // Auto-restore hero section if missing
-  const { toast } = useToast();
-  useEffect(() => {
-    if (sections && !sections.find(s => s.type === SECTION_TYPES.HERO)) {
-      createSection.mutate({
-        order_index: 0,
-        visible: true,
-        type: SECTION_TYPES.HERO,
-        title_en: 'Full Name',
-        title_gu: 'પૂર્ણ નામ',
-        content_en: 'A journey of love begins here',
-        content_gu: 'પ્રેમની યાત્રા અહીંથી શરૂ થાય છે',
-      });
-      toast({
-        title: 'Section Restored',
-        description: 'The Hero section was missing and has been restored.',
-      });
-    }
-  }, [sections, createSection]);
-
-  if (!isAdminVisible || !isAuthenticated) return null;
 
   const handleVisibilityToggle = (section: Section) => {
     updateSection.mutate({
@@ -66,7 +51,7 @@ export function AdminPanel() {
   };
 
   const handleAddSection = () => {
-    const newOrder = sections ? Math.max(...sections.map(s => s.order_index)) + 1 : 0;
+    const newOrder = sections && sections.length > 0 ? Math.max(...sections.map(s => s.order_index)) + 1 : 0;
     createSection.mutate({
       order_index: newOrder,
       visible: true,
@@ -104,7 +89,7 @@ export function AdminPanel() {
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden animate-fade-in">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-card border-b px-4 py-3 flex items-center justify-between shadow-sm">
+      <header className="h-16 bg-card border-b px-4 md:px-6 flex items-center justify-between shadow-sm">
         <h1 className="text-base md:text-lg font-serif font-medium truncate mr-2">Admin Dashboard</h1>
         <div className="flex items-center gap-1 md:gap-2 shrink-0">
           <button
@@ -125,11 +110,11 @@ export function AdminPanel() {
       </header>
 
       {/* Content */}
-      <main className="h-[calc(100vh-60px)] overflow-y-auto p-3 md:p-6 smooth-scroll bg-luxury-cream/30">
-        <div className="max-w-2xl mx-auto space-y-8 pb-20">
-          <div className="space-y-4">
+      <main className="admin-scrollbar h-[calc(100dvh-4rem)] overflow-y-auto overflow-x-hidden overscroll-contain bg-luxury-cream/30">
+        <div className="w-full max-w-[1500px] mx-auto space-y-8 px-3 py-4 pb-24 md:px-6 lg:px-8">
+          <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-5 lg:gap-6 items-start">
             {/* Privacy Section (Primary) */}
-            <div className="space-y-2">
+            <div className="space-y-2 xl:sticky xl:top-5">
               <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2">
                 <span className="w-1 h-1 rounded-full bg-luxury-gold" />
                 Security & Privacy
@@ -153,29 +138,11 @@ export function AdminPanel() {
                   />
                 </div>
 
-                <button
-                  onClick={async () => {
-                    const { data, error } = await supabase.functions.invoke('admin-settings', {
-                      body: {
-                        action: 'raw_sql',
-                        sql: "ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS is_privacy_mode BOOLEAN DEFAULT FALSE;"
-                      }
-                    });
-                    if (error) {
-                      toast({ title: 'Sync Error', description: error.message, variant: 'destructive' });
-                    } else {
-                      toast({ title: 'System Synced', description: 'Privacy mode support added to database.' });
-                    }
-                  }}
-                  className="text-[8px] text-muted-foreground/30 hover:text-luxury-gold transition-colors block w-full text-left"
-                >
-                  System Check: Run this if the toggle doesn't save.
-                </button>
               </div>
             </div>
 
             {/* Media Section */}
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2 mt-4">
                 <span className="w-1 h-1 rounded-full bg-luxury-gold" />
                 Visual Content
@@ -183,14 +150,6 @@ export function AdminPanel() {
               <HeroImageManager />
             </div>
 
-            {/* Social Section */}
-            <div className="space-y-2">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2 mt-4">
-                <span className="w-1 h-1 rounded-full bg-luxury-gold" />
-                Social Connectivity
-              </h2>
-              <SocialMediaManager />
-            </div>
           </div>
 
           <div className="relative">
@@ -305,6 +264,15 @@ export function AdminPanel() {
               </div>
               <span className="text-[10px] font-bold uppercase tracking-[0.3em] mt-1">Insert Content Segment</span>
             </button>
+          </div>
+
+          {/* Footer Section */}
+          <div className="space-y-2">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2 mt-4">
+              <span className="w-1 h-1 rounded-full bg-luxury-gold" />
+              Footer Contact
+            </h2>
+            <SocialMediaManager />
           </div>
         </div>
       </main>

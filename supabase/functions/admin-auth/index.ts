@@ -36,96 +36,168 @@ serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, password, currentPassword, newPassword } = await req.json();
+    const { action, password, currentPassword, newPassword, bootstrapToken } = await req.json();
 
     console.log(`Admin auth action: ${action}`);
 
-    if (action === 'login') {
-      // Get admin settings
-      const { data: settings, error: fetchError } = await supabase
-        .from('admin_settings')
-        .select('password_hash')
-        .single();
+    // ===== ACTION: setup-password (First-time initialization) =====
+    if (action === 'setup-password') {
+      // @ts-ignore: Deno runtime
+      const expectedToken = Deno.env.get('ADMIN_BOOTSTRAP_TOKEN');
 
-      if (fetchError) {
-        console.error('Error fetching admin settings:', fetchError);
+      if (!expectedToken) {
+        console.error('ADMIN_BOOTSTRAP_TOKEN not configured');
         return new Response(
           JSON.stringify({
             success: false,
-            message: 'Failed to read admin settings. Check that the admin_settings table exists and has data.',
-            debug: { code: fetchError.code, hint: fetchError.hint }
+            message: 'Server not configured for bootstrap'
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
         );
       }
 
-      if (!settings || !settings.password_hash) {
-        console.error('No admin settings or password hash found');
+      // Verify bootstrap token (must match exactly)
+      if (bootstrapToken !== expectedToken) {
+        console.warn(`Invalid bootstrap token attempt`);
         return new Response(
           JSON.stringify({
             success: false,
-            message: 'Admin account not configured. Run the setup migration.',
-            debug: { hasSettings: !!settings, hasHash: !!settings?.password_hash }
+            message: 'Invalid bootstrap token'
           }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        );
+      }
+
+      // Check if credentials already exist (one-time use)
+      const { data: existing, error: checkError } = await supabase
+        .from('admin_credentials')
+        .select('id')
+        .limit(1);
+
+      if (checkError) {
+        console.error('Error checking existing credentials:', checkError);
+        return new Response(
+          JSON.stringify({ success: false, message: 'Server error' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
         );
       }
 
-      // DEBUG LOGGING
-      console.log('Login Attempt Debug:');
-      console.log(`- Password length: ${password?.length}`);
-      console.log(`- Hash length: ${settings.password_hash?.length}`);
+      if (existing && existing.length > 0) {
+        console.warn('Bootstrap attempted but credentials already exist');
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: 'Admin credentials already configured'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 409 }
+        );
+      }
 
-      // Verify password using bcrypt
-      let isValid = false;
+      // Hash the new password
+      let passwordHash;
       try {
-        console.log(`- Comparing with bcryptjs...`);
-        isValid = await bcrypt.compare(password, settings.password_hash);
-        console.log(`- Compare result: ${isValid}`);
-      } catch (e) {
-        console.error('Bcrypt compare error:', e);
+        passwordHash = await bcrypt.hash(password, 10);
+      } catch (hashErr) {
+        console.error('Failed to hash password:', hashErr);
+        return new Response(
+          JSON.stringify({ success: false, message: 'Failed to hash password' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        );
       }
 
-      // Fallback: Check for plaintext if bcrypt failed
-      if (!isValid && settings.password_hash === password) {
-        console.warn('Password matched as plaintext — upgrading to hash');
-        isValid = true;
+      // Insert into admin_credentials
+      const { error: insertError } = await supabase
+        .from('admin_credentials')
+        .insert([{ password_hash: passwordHash }]);
 
-        // Auto-fix: hash the password and store it properly
-        try {
-          const properHash = await bcrypt.hash(password, 10);
-          const { error: updateError } = await supabase
-            .from('admin_settings')
-            .update({ password_hash: properHash })
-            .eq('password_hash', settings.password_hash);
-
-          if (updateError) {
-            console.error('Failed to update hash:', updateError);
-          } else {
-            console.log('Auto-fixed: password hash has been regenerated and saved');
-          }
-        } catch (hashErr) {
-          console.error('Failed to auto-fix password hash:', hashErr);
-        }
+      if (insertError) {
+        console.error('Error creating admin credentials:', insertError);
+        return new Response(
+          JSON.stringify({ success: false, message: 'Failed to create credentials' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        );
       }
 
-      console.log(`Login attempt - valid: ${isValid}`);
+      console.log('Admin credentials initialized successfully');
 
       return new Response(
-        JSON.stringify({ success: isValid }),
+        JSON.stringify({ success: true, message: 'Admin account initialized' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (action === 'change-password') {
-      // Get current admin settings
-      const { data: settings, error: fetchError } = await supabase
-        .from('admin_settings')
+    // ===== ACTION: login =====
+    if (action === 'login') {
+      // Fetch admin credentials
+      const { data: credentials, error: fetchError } = await supabase
+        .from('admin_credentials')
         .select('id, password_hash')
         .single();
 
       if (fetchError) {
-        console.error('Error fetching admin settings:', fetchError);
+        console.error('Error fetching admin credentials:', fetchError);
+        // Don't reveal whether table/row exists
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: 'Invalid credentials'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        );
+      }
+
+      if (!credentials || !credentials.password_hash) {
+        console.error('No admin credentials found or password hash is empty');
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: 'Admin account not configured'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        );
+      }
+
+      // Verify password using bcrypt (no plaintext fallback)
+      let isValid = false;
+      try {
+        isValid = await bcrypt.compare(password, credentials.password_hash);
+      } catch (e) {
+        console.error('Bcrypt compare error:', e);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: 'Invalid credentials'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        );
+      }
+
+      if (!isValid) {
+        console.warn('Login attempt failed: password mismatch');
+        return new Response(
+          JSON.stringify({ success: false, message: 'Invalid credentials' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        );
+      }
+
+      console.log('Login successful');
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ===== ACTION: change-password =====
+    if (action === 'change-password') {
+      // Fetch current admin credentials
+      const { data: credentials, error: fetchError } = await supabase
+        .from('admin_credentials')
+        .select('id, password_hash')
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching admin credentials:', fetchError);
         return new Response(
           JSON.stringify({ success: false, message: 'Server error' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
@@ -135,26 +207,39 @@ serve(async (req: Request) => {
       // Verify current password
       let isValid = false;
       try {
-        isValid = await bcrypt.compare(currentPassword, settings.password_hash);
+        isValid = await bcrypt.compare(currentPassword, credentials.password_hash);
       } catch (e) {
-        console.error('Bcrypt compare failed for password change:', e);
-        isValid = currentPassword === settings.password_hash;
+        console.error('Bcrypt compare error:', e);
+        return new Response(
+          JSON.stringify({ success: false, message: 'Invalid current password' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        );
       }
 
       if (!isValid) {
         return new Response(
           JSON.stringify({ success: false, message: 'Current password is incorrect' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
         );
       }
 
-      // Hash new password and update
-      const newHash = await bcrypt.hash(newPassword, 10);
+      // Hash new password
+      let newHash;
+      try {
+        newHash = await bcrypt.hash(newPassword, 10);
+      } catch (e) {
+        console.error('Failed to hash new password:', e);
+        return new Response(
+          JSON.stringify({ success: false, message: 'Failed to update password' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        );
+      }
 
+      // Update password
       const { error: updateError } = await supabase
-        .from('admin_settings')
+        .from('admin_credentials')
         .update({ password_hash: newHash })
-        .eq('id', settings.id);
+        .eq('id', credentials.id);
 
       if (updateError) {
         console.error('Error updating password:', updateError);
@@ -172,19 +257,19 @@ serve(async (req: Request) => {
       );
     }
 
-    // Health check action for debugging
+    // ===== ACTION: health =====
     if (action === 'health') {
       const { data, error } = await supabase
-        .from('admin_settings')
+        .from('admin_credentials')
         .select('id, created_at')
         .single();
 
       return new Response(
         JSON.stringify({
           success: !error,
-          message: error ? `Health check failed: ${error.message}` : 'Edge function is healthy',
+          message: error ? `No admin credentials found` : 'Edge function is healthy',
           debug: {
-            hasAdminSettings: !!data,
+            hasCredentials: !!data,
             supabaseUrlConfigured: !!supabaseUrl,
             serviceKeyConfigured: !!supabaseServiceKey,
           }

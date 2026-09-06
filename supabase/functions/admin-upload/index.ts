@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     }
 
     const fileExt = (file as File).name.split('.').pop();
-    const fileName = `hero-${Date.now()}.${fileExt}`;
+    const fileName = `hero-${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
 
     // Upload using service key (bypasses RLS)
     const { data, error: uploadError } = await supabase.storage

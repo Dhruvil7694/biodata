@@ -9,6 +9,80 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(
+    JSON.stringify(body),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status }
+  );
+}
+
+function dbErrorResponse(error: any, fallback: string) {
+  const message = error?.message || fallback;
+  const code = error?.code;
+
+  console.error(fallback, error);
+  return jsonResponse({ error: message, code }, 400);
+}
+
+function sectionTypeToTitle(type: string | undefined, fallback: string | null | undefined) {
+  if (fallback) return fallback;
+
+  switch (type) {
+    case 'contact':
+      return 'Contact';
+    case 'family':
+      return 'Family';
+    case 'career':
+      return 'Education';
+    case 'lifestyle':
+      return 'Interests';
+    case 'goals':
+      return 'Goals';
+    case 'philosophy':
+      return 'Philosophy';
+    default:
+      return 'About';
+  }
+}
+
+function buildLanguageRows(section: any, orderIndex: number) {
+  return [
+    {
+      title: sectionTypeToTitle(section.type, section.title_en),
+      subtitle: null,
+      content: section.content_en ?? '',
+      order_index: orderIndex,
+      visible: section.visible ?? true,
+      language: 'en',
+    },
+    {
+      title: section.title_gu || section.title_en || sectionTypeToTitle(section.type, null),
+      subtitle: null,
+      content: section.content_gu ?? section.content_en ?? '',
+      order_index: orderIndex,
+      visible: section.visible ?? true,
+      language: 'gu',
+    },
+  ];
+}
+
+async function findSectionGroup(supabase: any, sectionId: string) {
+  const { data: base, error } = await supabase
+    .from('sections')
+    .select('id, order_index, language, visible')
+    .eq('id', sectionId)
+    .single();
+
+  if (error) return { base: null, rows: null, error };
+
+  const { data: rows, error: rowsError } = await supabase
+    .from('sections')
+    .select('id, language')
+    .eq('order_index', base.order_index);
+
+  return { base, rows, error: rowsError };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -38,11 +112,7 @@ serve(async (req) => {
         .order('order_index', { ascending: true });
 
       if (error) {
-        console.error('Error listing sections:', error);
-        return new Response(
-          JSON.stringify({ error: 'Failed to fetch sections' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
+        return dbErrorResponse(error, 'Failed to fetch sections');
       }
 
       return new Response(
@@ -54,20 +124,57 @@ serve(async (req) => {
     // Update a section
     if (action === 'update') {
       const { id: sectionId, ...updateData } = section;
+      const { base, rows, error: groupError } = await findSectionGroup(supabase, sectionId);
+
+      if (groupError || !base || !rows) {
+        return dbErrorResponse(groupError, 'Failed to find section');
+      }
+
+      const hasContentUpdate = (
+        'title_en' in updateData ||
+        'title_gu' in updateData ||
+        'content_en' in updateData ||
+        'content_gu' in updateData ||
+        'type' in updateData
+      );
+
+      const updates = hasContentUpdate
+        ? buildLanguageRows({ ...updateData, visible: updateData.visible ?? base.visible }, base.order_index).map((row) => {
+          const existing = rows.find((candidate: any) => candidate.language === row.language);
+
+          if (existing) {
+            return supabase
+              .from('sections')
+              .update(row)
+              .eq('id', existing.id);
+          }
+
+          return supabase
+            .from('sections')
+            .insert(row);
+        })
+        : rows.map((row: any) =>
+          supabase
+            .from('sections')
+            .update({ visible: updateData.visible })
+            .eq('id', row.id)
+        );
+
+      const results = await Promise.all(updates);
+      const failed = results.find((result) => result.error);
+
+      if (failed) {
+        return dbErrorResponse(failed.error, 'Failed to update section');
+      }
 
       const { data, error } = await supabase
         .from('sections')
-        .update(updateData)
+        .select('*')
         .eq('id', sectionId)
-        .select()
         .single();
 
       if (error) {
-        console.error('Error updating section:', error);
-        return new Response(
-          JSON.stringify({ error: 'Failed to update section' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
+        return dbErrorResponse(error, 'Failed to update section');
       }
 
       console.log(`Section ${sectionId} updated`);
@@ -80,41 +187,39 @@ serve(async (req) => {
 
     // Create a new section
     if (action === 'create') {
+      const rows = buildLanguageRows(section, section.order_index ?? 0);
       const { data, error } = await supabase
         .from('sections')
-        .insert(section)
-        .select()
-        .single();
+        .insert(rows)
+        .select();
 
       if (error) {
-        console.error('Error creating section:', error);
-        return new Response(
-          JSON.stringify({ error: 'Failed to create section' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
+        return dbErrorResponse(error, 'Failed to create section');
       }
 
-      console.log('Section created:', data.id);
+      console.log('Section created:', data?.[0]?.id);
 
       return new Response(
-        JSON.stringify({ section: data }),
+        JSON.stringify({ section: data?.[0] }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Delete a section
     if (action === 'delete') {
+      const { base, error: groupError } = await findSectionGroup(supabase, id);
+
+      if (groupError || !base) {
+        return dbErrorResponse(groupError, 'Failed to find section');
+      }
+
       const { error } = await supabase
         .from('sections')
         .delete()
-        .eq('id', id);
+        .eq('order_index', base.order_index);
 
       if (error) {
-        console.error('Error deleting section:', error);
-        return new Response(
-          JSON.stringify({ error: 'Failed to delete section' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
+        return dbErrorResponse(error, 'Failed to delete section');
       }
 
       console.log(`Section ${id} deleted`);
@@ -127,20 +232,23 @@ serve(async (req) => {
 
     // Duplicate a section
     if (action === 'duplicate') {
-      // Get the section to duplicate
-      const { data: original, error: fetchError } = await supabase
+      const { base, error: groupError } = await findSectionGroup(supabase, id);
+
+      if (groupError || !base) {
+        return dbErrorResponse(groupError, 'Failed to fetch section');
+      }
+
+      const { data: originals, error: fetchError } = await supabase
         .from('sections')
         .select('*')
-        .eq('id', id)
-        .single();
+        .eq('order_index', base.order_index);
 
       if (fetchError) {
-        console.error('Error fetching section to duplicate:', fetchError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to fetch section' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
+        return dbErrorResponse(fetchError, 'Failed to fetch section');
       }
+
+      const originalEn = originals.find((row: any) => row.language === 'en') || originals[0];
+      const originalGu = originals.find((row: any) => row.language === 'gu') || originalEn;
 
       // Get max order index
       const { data: maxSection } = await supabase
@@ -155,53 +263,82 @@ serve(async (req) => {
       // Create duplicate
       const { data: duplicate, error: insertError } = await supabase
         .from('sections')
-        .insert({
-          order_index: newOrderIndex,
-          visible: original.visible,
-          type: original.type,
-          title_en: `${original.title_en} (Copy)`,
-          title_gu: `${original.title_gu} (નકલ)`,
-          content_en: original.content_en,
-          content_gu: original.content_gu,
-        })
-        .select()
-        .single();
+        .insert([
+          {
+            title: `${originalEn.title || 'Section'} (Copy)`,
+            subtitle: originalEn.subtitle,
+            content: originalEn.content,
+            order_index: newOrderIndex,
+            visible: originalEn.visible,
+            language: 'en',
+          },
+          {
+            title: `${originalGu.title || originalEn.title || 'વિભાગ'} (નકલ)`,
+            subtitle: originalGu.subtitle,
+            content: originalGu.content,
+            order_index: newOrderIndex,
+            visible: originalGu.visible,
+            language: 'gu',
+          },
+        ])
+        .select();
 
       if (insertError) {
-        console.error('Error duplicating section:', insertError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to duplicate section' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
+        return dbErrorResponse(insertError, 'Failed to duplicate section');
       }
 
-      console.log(`Section ${id} duplicated as ${duplicate.id}`);
+      console.log(`Section ${id} duplicated as ${duplicate?.[0]?.id}`);
 
       return new Response(
-        JSON.stringify({ section: duplicate }),
+        JSON.stringify({ section: duplicate?.[0] }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Reorder sections
     if (action === 'reorder') {
-      // Update order indices
-      const updates = orderedIds.map((sectionId: string, index: number) =>
+      const groups = await Promise.all(
+        orderedIds.map((sectionId: string) =>
+          supabase
+            .from('sections')
+            .select('id, order_index')
+            .eq('id', sectionId)
+            .single()
+        )
+      );
+
+      const groupFetchError = groups.find(result => result.error);
+      if (groupFetchError) {
+        return dbErrorResponse(groupFetchError.error, 'Failed to reorder sections');
+      }
+
+      const tempOffset = 10000;
+      const tempUpdates = groups.map((result: any, index: number) =>
+        supabase
+          .from('sections')
+          .update({ order_index: tempOffset + index })
+          .eq('order_index', result.data.order_index)
+      );
+
+      const tempResults = await Promise.all(tempUpdates);
+      const tempError = tempResults.find(r => r.error);
+      if (tempError) {
+        return dbErrorResponse(tempError.error, 'Failed to reorder sections');
+      }
+
+      // Update both language rows for each displayed section.
+      const updates = groups.map((_: any, index: number) =>
         supabase
           .from('sections')
           .update({ order_index: index })
-          .eq('id', sectionId)
+          .eq('order_index', tempOffset + index)
       );
 
       const results = await Promise.all(updates);
 
-      const hasError = results.some(r => r.error);
-      if (hasError) {
-        console.error('Error reordering sections');
-        return new Response(
-          JSON.stringify({ error: 'Failed to reorder sections' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
+      const updateError = results.find(r => r.error);
+      if (updateError) {
+        return dbErrorResponse(updateError.error, 'Failed to reorder sections');
       }
 
       console.log('Sections reordered');
@@ -212,16 +349,10 @@ serve(async (req) => {
       );
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Invalid action' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-    );
+    return jsonResponse({ error: 'Invalid action' }, 400);
 
   } catch (error) {
     console.error('Admin sections error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Server error' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-    );
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Server error' }, 500);
   }
 });

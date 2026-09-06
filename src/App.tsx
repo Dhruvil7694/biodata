@@ -8,7 +8,17 @@ import { AdminProvider } from "@/contexts/AdminContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1, // Retry failed queries once (not 3x default)
+      staleTime: 1000 * 60 * 5, // 5 minutes
+    },
+    mutations: {
+      retry: false, // Do not retry mutations (manual admin action required)
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

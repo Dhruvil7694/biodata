@@ -7,61 +7,71 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
-      admin_settings: {
+      sections: {
         Row: {
-          created_at: string
-          hero_image_url: string | null
           id: string
-          password_hash: string
-          site_title: string | null
+          title: string | null
+          subtitle: string | null
+          content: string | null
+          order_index: number
+          visible: boolean
+          language: string
+          created_at: string
           updated_at: string
         }
         Insert: {
-          created_at?: string
-          hero_image_url?: string | null
           id?: string
-          password_hash: string
-          site_title?: string | null
+          title?: string | null
+          subtitle?: string | null
+          content?: string | null
+          order_index?: number
+          visible?: boolean
+          language?: string
+          created_at?: string
           updated_at?: string
         }
         Update: {
-          created_at?: string
-          hero_image_url?: string | null
           id?: string
-          password_hash?: string
-          site_title?: string | null
+          title?: string | null
+          subtitle?: string | null
+          content?: string | null
+          order_index?: number
+          visible?: boolean
+          language?: string
+          created_at?: string
           updated_at?: string
         }
         Relationships: []
       }
       images: {
         Row: {
+          id: string
+          section_id: string | null
+          url: string | null
           alt_text: string | null
           created_at: string
-          id: string
-          image_url: string
-          section_id: string | null
+          updated_at: string
         }
         Insert: {
+          id?: string
+          section_id?: string | null
+          url?: string | null
           alt_text?: string | null
           created_at?: string
-          id?: string
-          image_url: string
-          section_id?: string | null
+          updated_at?: string
         }
         Update: {
+          id?: string
+          section_id?: string | null
+          url?: string | null
           alt_text?: string | null
           created_at?: string
-          id?: string
-          image_url?: string
-          section_id?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -73,42 +83,60 @@ export type Database = {
           },
         ]
       }
-      sections: {
+      site_settings: {
         Row: {
-          content_en: string | null
-          content_gu: string | null
-          created_at: string
           id: string
-          order_index: number
-          title_en: string | null
-          title_gu: string | null
-          type: string
+          site_title: string | null
+          hero_image_url: string | null
+          hero_image_urls: Json
+          hero_image_position: string | null
+          is_privacy_mode: boolean
+          social_links: Json
+          created_at: string
           updated_at: string
-          visible: boolean
         }
         Insert: {
-          content_en?: string | null
-          content_gu?: string | null
-          created_at?: string
           id?: string
-          order_index?: number
-          title_en?: string | null
-          title_gu?: string | null
-          type: string
+          site_title?: string | null
+          hero_image_url?: string | null
+          hero_image_urls?: Json
+          hero_image_position?: string | null
+          is_privacy_mode?: boolean
+          social_links?: Json
+          created_at?: string
           updated_at?: string
-          visible?: boolean
         }
         Update: {
-          content_en?: string | null
-          content_gu?: string | null
-          created_at?: string
           id?: string
-          order_index?: number
-          title_en?: string | null
-          title_gu?: string | null
-          type?: string
+          site_title?: string | null
+          hero_image_url?: string | null
+          hero_image_urls?: Json
+          hero_image_position?: string | null
+          is_privacy_mode?: boolean
+          social_links?: Json
+          created_at?: string
           updated_at?: string
-          visible?: boolean
+        }
+        Relationships: []
+      }
+      admin_credentials: {
+        Row: {
+          id: string
+          password_hash: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          password_hash?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          password_hash?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

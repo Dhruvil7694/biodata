@@ -120,9 +120,54 @@ export function useAdminAuth() {
     }
   };
 
+  const setupAdmin = async (bootstrapToken: string, newPassword: string): Promise<boolean> => {
+    setIsLoading(true);
+
+    try {
+      const response = await supabase.functions.invoke('admin-auth', {
+        body: { 
+          action: 'setup-password',
+          bootstrapToken,
+          password: newPassword
+        }
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data.success) {
+        login(true);
+        toast({
+          title: 'Admin account initialized',
+          description: 'Your admin credentials have been created.',
+        });
+        return true;
+      } else {
+        toast({
+          title: 'Setup failed',
+          description: response.data.message || 'Invalid bootstrap token or token already used.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('Setup error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to initialize admin account. Please try again.',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     authenticate,
     changePassword,
+    setupAdmin,
     isLoading,
   };
 }

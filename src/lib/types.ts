@@ -15,16 +15,20 @@ export interface Section {
 export interface SectionImage {
   id: string;
   section_id: string | null;
-  image_url: string;
+  url: string | null;
   alt_text: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface AdminSettings {
   id: string;
-  password_hash: string;
   site_title: string | null;
   hero_image_url: string | null;
+  hero_image_urls?: string[] | null;
+  hero_image_position?: string | null;
+  is_privacy_mode?: boolean;
+  social_links?: unknown;
   created_at: string;
   updated_at: string;
 }

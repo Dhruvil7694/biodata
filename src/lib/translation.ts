@@ -1,33 +1,206 @@
+import { supabase } from '@/integrations/supabase/client';
+
 /**
- * Simple translation utility using a public translation endpoint.
- * Note: For production use, a dedicated API key and service (like Google Cloud Translate) 
- * would be recommended for reliability and higher limits.
+ * Translation utility for the admin editor.
+ *
+ * Exact biodata labels are translated locally. Free-form text is batched through
+ * the Edge Function so typing in the editor creates one small request burst
+ * instead of many parallel requests.
  */
+const translationCache = new Map<string, string>();
+const pendingTranslations = new Map<string, Array<(value: string) => void>>();
+let pendingTranslationTimer: ReturnType<typeof setTimeout> | null = null;
+const localGujaratiTranslations: Record<string, string> = {
+    'about': 'વિશે',
+    'family details': 'પારિવારિક વિગતો',
+    'family details (satiya)': 'પારિવારિક વિગતો (સાટિયા)',
+    'mosad details': 'મોસાળ વિગતો',
+    'mosal details': 'મોસાળ વિગતો',
+    'education & career': 'શિક્ષણ અને કારકિર્દી',
+    'education and career': 'શિક્ષણ અને કારકિર્દી',
+    'contact': 'સંપર્ક',
+    'full name': 'પૂર્ણ નામ',
+    'date of birth': 'જન્મ તારીખ',
+    'place of birth': 'જન્મ સ્થળ',
+    'age': 'ઉંમર',
+    'height': 'ઊંચાઈ',
+    'weight': 'વજન',
+    'blood group': 'બ્લડ ગ્રુપ',
+    'caste / subcaste': 'જાતિ / પેટા જાતિ',
+    'rashi': 'રાશિ',
+    'current city': 'વર્તમાન શહેર',
+    'highest qualification': 'સર્વોચ્ચ લાયકાત',
+    'field': 'ક્ષેત્ર',
+    'university': 'યુનિવર્સિટી',
+    'year of graduation': 'ગ્રેજ્યુએશન વર્ષ',
+    'current occupation': 'વર્તમાન વ્યવસાય',
+    'company': 'કંપની',
+    'industry / sector': 'ઇન્ડસ્ટ્રી / સેક્ટર',
+    'work location': 'કામનું સ્થળ',
+    "father's name": 'પિતાનું નામ',
+    "father's occupation": 'પિતાનો વ્યવસાય',
+    "mother's name": 'માતાનું નામ',
+    "mother's occupation": 'માતાનો વ્યવસાય',
+    "sister's name": 'બહેનનું નામ',
+    "sister's occupation": 'બહેનનું અભ્યાસ',
+    'family type': 'પરિવારનો પ્રકાર',
+    'native place': 'વતન',
+    'late grandfather': 'સ્વ. દાદા',
+    'late grandmother': 'સ્વ. દાદી',
+    'maternal uncle 1 (mama)': 'મામા 1',
+    'maternal uncle 2 (mama)': 'મામા 2',
+    'mama 1': 'મામા 1',
+    'mama 2': 'મામા 2',
+    'mama 3': 'મામા 3',
+    'masi 1': 'માસી 1',
+    'masi 2': 'માસી 2',
+    'masi 3': 'માસી 3',
+    'residence': 'રહેઠાણ',
+    'kemraj': 'કેમરાજ',
+    'athwa umra, surat': 'અઠવા ઉમરા, સુરત',
+    'athwa umra': 'અઠવા ઉમરા',
+    'pune': 'પુણે',
+    'surat': 'સુરત',
+    'dhanu / sagittarius': 'ધનુ / Sagittarius',
+    'nuclear': 'ન્યુક્લિયર',
+    'housewife': 'ગૃહિણી',
+    'diamond business & agriculture': 'ડાયમંડ બિઝનેસ અને એગ્રીકલ્ચર',
+    'ai engineer': 'AI Engineer',
+    'software': 'Software',
+    'dhruvil hirenbhai patel': 'ધ્રુવિલ હિરેનભાઈ પટેલ',
+    'hirenbhai rameshbhai patel': 'હિરેનભાઈ રમેશભાઈ પટેલ',
+    'darshanaben hirenbhai patel': 'દર્શનાબેન હિરેનભાઈ પટેલ',
+    'dhruvi hirenbhai patel': 'ધ્રુવી હિરેનભાઈ પટેલ',
+    'bharatbhai dayabhai patel': 'ભારતભાઈ દયાભાઈ પટેલ',
+    'geetaben bharatbhai patel': 'ગીતાબેન ભારતભાઈ પટેલ',
+    'hiralbhai bharatbhai patel (athwa umra)': 'હિરલભાઈ ભારતભાઈ પટેલ (અઠવા ઉમરા)',
+    'hetalbhai bharatbhai patel (kemraj char rasta)': 'હેતલભાઈ ભારતભાઈ પટેલ (કેમરાજ ચાર રસ્તા)',
+    'hetalbhai bharatbhai patel': 'હેતલભાઈ ભારતભાઈ પટેલ',
+    'hiralbhai bharatbhai patel': 'હિરલભાઈ ભારતભાઈ પટેલ',
+    'poonamben bharatbhai patel': 'પૂનમબેન ભારતભાઈ પટેલ',
+    'mulad': 'મુલાડ',
+    'hindu lal chuda kadva patidar': 'હિન્દુ લાલ ચુડા કડવા પાટીદાર',
+    'b.tech information technology & engineering (it&e)': 'B.Tech Information Technology & Engineering (IT&E)',
+    'artificial intelligence (ai)': 'Artificial Intelligence (AI)',
+    'p. p savani university': 'P. P Savani University',
+    'ey gds': 'EY GDS',
+    "ongoing bachelor's in computer engineering": "Computer Engineering માં ચાલુ Bachelor's",
+    'this is the interests section. share your hobbies and interests.': 'આ રુચિઓનો વિભાગ છે. તમારા શોખ અને રુચિઓ શેર કરો.',
+};
+
+const phraseReplacements: Array<[RegExp, string]> = [
+    [/\bmosad\b/gi, 'મોસાળ'],
+    [/\bmosal\b/gi, 'મોસાળ'],
+    [/\bmama\b/gi, 'મામા'],
+    [/\bmasi\b/gi, 'માસી'],
+    [/\bdetails\b/gi, 'વિગતો'],
+    [/\bsection\b/gi, 'વિભાગ'],
+    [/\bshare\b/gi, 'શેર કરો'],
+    [/\byour\b/gi, 'તમારા'],
+    [/\bhobbies\b/gi, 'શોખ'],
+    [/\bhobby\b/gi, 'શોખ'],
+    [/\binterests\b/gi, 'રુચિઓ'],
+    [/\binterest\b/gi, 'રુચિ'],
+    [/\bfamily\b/gi, 'પરિવાર'],
+    [/\beducation\b/gi, 'શિક્ષણ'],
+    [/\bcareer\b/gi, 'કારકિર્દી'],
+    [/\bcontact\b/gi, 'સંપર્ક'],
+    [/\babout\b/gi, 'વિશે'],
+    [/\bname\b/gi, 'નામ'],
+    [/\boccupation\b/gi, 'વ્યવસાય'],
+    [/\bresidence\b/gi, 'રહેઠાણ'],
+    [/\bcurrent\b/gi, 'વર્તમાન'],
+    [/\bcity\b/gi, 'શહેર'],
+    [/\bnative\b/gi, 'વતન'],
+    [/\bplace\b/gi, 'સ્થળ'],
+    [/\bbirth\b/gi, 'જન્મ'],
+    [/\bdate\b/gi, 'તારીખ'],
+    [/\bthis is\b/gi, 'આ છે'],
+    [/\bthe\b/gi, ''],
+    [/\band\b/gi, 'અને'],
+];
+
+function buildLocalTranslation(text: string): string {
+    let translated = text.trim();
+    let changed = false;
+
+    phraseReplacements.forEach(([pattern, replacement]) => {
+        const next = translated.replace(pattern, replacement);
+        if (next !== translated) changed = true;
+        translated = next;
+    });
+
+    return changed
+        ? translated.replace(/\s{2,}/g, ' ').replace(/\s+([.,])/g, '$1').trim()
+        : '';
+}
+
+function flushPendingTranslations() {
+    const entries = Array.from(pendingTranslations.entries());
+    pendingTranslations.clear();
+    pendingTranslationTimer = null;
+
+    const texts = entries.map(([text]) => text);
+
+    supabase.functions.invoke('translate-gujarati', {
+        body: { texts },
+    }).then(({ data, error }) => {
+        const translatedTexts = Array.isArray(data?.translatedTexts) ? data.translatedTexts : [];
+
+        entries.forEach(([text, resolvers], index) => {
+            const translatedText = typeof translatedTexts[index] === 'string' ? translatedTexts[index] : '';
+            translationCache.set(text.toLowerCase(), translatedText);
+            resolvers.forEach(resolve => resolve(translatedText));
+        });
+
+        if (error) {
+            console.warn('Gujarati translation unavailable; keeping editable text unchanged.', error);
+        }
+    }).catch((error) => {
+        entries.forEach(([text, resolvers]) => {
+            translationCache.set(text.toLowerCase(), '');
+            resolvers.forEach(resolve => resolve(''));
+        });
+        console.warn('Gujarati translation unavailable; keeping editable text unchanged.', error);
+    });
+}
+
+function queueRemoteTranslation(text: string): Promise<string> {
+    return new Promise((resolve) => {
+        const existing = pendingTranslations.get(text);
+        if (existing) {
+            existing.push(resolve);
+        } else {
+            pendingTranslations.set(text, [resolve]);
+        }
+
+        if (pendingTranslationTimer) clearTimeout(pendingTranslationTimer);
+        pendingTranslationTimer = setTimeout(flushPendingTranslations, 200);
+    });
+}
 
 export async function translateToGujarati(text: string): Promise<string> {
     if (!text || text.trim() === '') return '';
+    const trimmedText = text.trim();
+    const cacheKey = trimmedText.toLowerCase();
+    const localTranslation = localGujaratiTranslations[cacheKey];
 
-    try {
-        // Using a public-access Google Translate endpoint
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=gu&dt=t&q=${encodeURIComponent(text)}`;
-
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error('Translation request failed');
-        }
-
-        const data = await response.json();
-
-        // The response format is nested arrays: [[["translated_text", "source_text", ...]]]
-        if (data && data[0] && Array.isArray(data[0])) {
-            return data[0].map((item: any) => item[0]).join('');
-        }
-
-        return '';
-    } catch (error) {
-        console.error('Translation error:', error);
-        throw error;
+    if (localTranslation) {
+        translationCache.set(cacheKey, localTranslation);
+        return localTranslation;
     }
+
+    if (translationCache.has(cacheKey)) {
+        return translationCache.get(cacheKey) || '';
+    }
+
+    const generatedTranslation = buildLocalTranslation(text);
+    if (generatedTranslation) {
+        translationCache.set(cacheKey, generatedTranslation);
+        return generatedTranslation;
+    }
+
+    return queueRemoteTranslation(trimmedText);
 }
 
 // Static translations for common UI elements

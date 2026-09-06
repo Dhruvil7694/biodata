@@ -18,8 +18,8 @@ export function PasswordChangeModal({ onClose }: PasswordChangeModalProps) {
     e.preventDefault();
     setError('');
 
-    if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters');
+    if (newPassword.length < 8) {
+      setError('New password must be at least 8 characters');
       return;
     }
 
@@ -71,10 +71,10 @@ export function PasswordChangeModal({ onClose }: PasswordChangeModalProps) {
               type={showPasswords ? 'text' : 'password'}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="New password (min 6 chars)"
+              placeholder="New password (min 8 chars)"
               className="admin-input"
               required
-              minLength={6}
+              minLength={8}
             />
           </div>
 

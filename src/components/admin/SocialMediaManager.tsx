@@ -44,13 +44,11 @@ export function SocialMediaManager() {
     const [newUsername, setNewUsername] = useState('');
 
     useEffect(() => {
-        if (settings?.social_links) {
-            // Ensure it's an array to avoid crashes if DB has null/invalid data
-            setLinks(Array.isArray(settings.social_links) ? settings.social_links : []);
-        }
+        // Ensure it's an array to avoid crashes if DB has null/invalid data.
+        setLinks(Array.isArray(settings?.social_links) ? settings.social_links : []);
     }, [settings]);
 
-    const handleAdd = () => {
+    const handleAdd = async () => {
         if (!newUsername.trim()) return;
 
         const platformDef = SUPPORTED_PLATFORMS.find(p => p.id === newPlatform);
@@ -74,6 +72,7 @@ export function SocialMediaManager() {
             url: finalUrl
         };
 
+        const previousLinks = links;
         const updatedLinks = [...links, newLink];
         setLinks(updatedLinks);
 
@@ -81,17 +80,27 @@ export function SocialMediaManager() {
         setNewUsername('');
 
         // Auto-save
-        handleSave(updatedLinks);
+        try {
+            await handleSave(updatedLinks);
+        } catch {
+            setLinks(previousLinks);
+        }
     };
 
-    const handleRemove = (index: number) => {
+    const handleRemove = async (index: number) => {
+        const previousLinks = links;
         const updatedLinks = links.filter((_, i) => i !== index);
         setLinks(updatedLinks);
-        handleSave(updatedLinks);
+
+        try {
+            await handleSave(updatedLinks);
+        } catch {
+            setLinks(previousLinks);
+        }
     };
 
     const handleSave = (updatedLinks: SocialLink[]) => {
-        updateSettings.mutate({ social_links: updatedLinks });
+        return updateSettings.mutateAsync({ social_links: updatedLinks });
     };
 
     if (isLoading) return null;
@@ -105,8 +114,8 @@ export function SocialMediaManager() {
                     <Share2 className="w-5 h-5 text-luxury-gold" />
                 </div>
                 <div>
-                    <h3 className="font-serif font-medium">Social Connections</h3>
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest">Manage your public profiles</p>
+                    <h3 className="font-serif font-medium">Footer Contact</h3>
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest">Manage footer links and contact actions</p>
                 </div>
             </div>
 

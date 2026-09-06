@@ -1,15 +1,76 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { AdminSetupModal } from './AdminSetupModal';
 import { X, Lock, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export function AdminLoginModal() {
   const { isAdminVisible, isAuthenticated, hideAdmin } = useAdmin();
   const { authenticate, isLoading } = useAdminAuth();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
+
+  // Check if admin credentials need to be set up (once per modal open)
+  useEffect(() => {
+    if (!isAdminVisible) {
+      setCheckingSetup(false);
+      return;
+    }
+
+    let isMounted = true;
+    
+    const checkCredentialsStatus = async () => {
+      try {
+        const response = await supabase.functions.invoke('admin-auth', {
+          body: { action: 'health' }
+        });
+
+        if (!isMounted) return;
+
+        // If no credentials found, we need setup
+        if (response.data && response.data.message && response.data.message.includes('No admin')) {
+          setNeedsSetup(true);
+        } else {
+          setNeedsSetup(false);
+        }
+      } catch (error) {
+        // If check fails, assume setup is needed (graceful degradation)
+        if (isMounted) {
+          console.error('Failed to check credentials status:', error);
+          setNeedsSetup(false); // Default to login attempt
+        }
+      } finally {
+        if (isMounted) {
+          setCheckingSetup(false);
+        }
+      }
+    };
+
+    checkCredentialsStatus();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdminVisible]);
 
   if (!isAdminVisible || isAuthenticated) return null;
+
+  if (checkingSetup) {
+    return (
+      <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-foreground/50 backdrop-blur-sm">
+        <div className="w-full max-w-sm bg-card rounded-2xl shadow-2xl p-6 md:p-8">
+          <p className="text-center text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (needsSetup) {
+    return <AdminSetupModal open={true} onSetupComplete={hideAdmin} />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

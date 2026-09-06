@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Section } from '@/lib/types';
 import { useUpdateSection } from '@/hooks/useSections';
-import { X, Save, Languages, Loader2, Plus, Trash2, Type, LayoutGrid, Calendar as CalendarIcon } from 'lucide-react';
+import { X, Save, Languages, Loader2, Plus, Trash2, Type, LayoutGrid, Calendar as CalendarIcon, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
 import { translateToGujarati } from '@/lib/translation';
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -117,7 +117,26 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
 
   const [isAutoTranslate, setIsAutoTranslate] = useState(true);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
   const translationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTranslatedTitleRef = useRef('');
+  const autoTranslatedSourceRef = useRef<Record<string, string>>({});
+
+  const getAutoTranslatedValue = (id: string, source: string, current: string, translated: string) => {
+    const normalizedSource = source.trim();
+
+    if (!normalizedSource) {
+      delete autoTranslatedSourceRef.current[id];
+      return '';
+    }
+
+    if (autoTranslatedSourceRef.current[id] === normalizedSource) {
+      return current;
+    }
+
+    autoTranslatedSourceRef.current[id] = normalizedSource;
+    return translated;
+  };
 
   // Live translation effect
   useEffect(() => {
@@ -139,8 +158,11 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
           }));
         } else {
           // Translate title
-          const translatedTitle = await translateToGujarati(formData.title_en);
-          setFormData(prev => ({ ...prev, title_gu: translatedTitle || prev.title_gu }));
+          if (formData.title_en !== lastTranslatedTitleRef.current) {
+            lastTranslatedTitleRef.current = formData.title_en;
+            const translatedTitle = await translateToGujarati(formData.title_en);
+            setFormData(prev => ({ ...prev, title_gu: translatedTitle || prev.title_gu }));
+          }
 
           // Translate both field keys AND values for dynamic translation
           const translatedFields = await Promise.all(
@@ -148,15 +170,35 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
               const translatedSubs = await Promise.all(
                 f.subs.map(async (s) => ({
                   ...s,
-                  key_gu: s.key_en ? await translateToGujarati(s.key_en) : s.key_gu,
-                  value_gu: s.value_en ? await translateToGujarati(s.value_en) : s.value_gu,
+                  key_gu: getAutoTranslatedValue(
+                    `${s.id}:key`,
+                    s.key_en,
+                    s.key_gu,
+                    s.key_en ? await translateToGujarati(s.key_en) : ''
+                  ),
+                  value_gu: getAutoTranslatedValue(
+                    `${s.id}:value`,
+                    s.value_en,
+                    s.value_gu,
+                    s.value_en ? await translateToGujarati(s.value_en) : ''
+                  ),
                 }))
               );
 
               return {
                 ...f,
-                key_gu: f.key_en ? await translateToGujarati(f.key_en) : f.key_gu,
-                value_gu: f.value_en ? await translateToGujarati(f.value_en) : f.value_gu,
+                key_gu: getAutoTranslatedValue(
+                  `${f.id}:key`,
+                  f.key_en,
+                  f.key_gu,
+                  f.key_en ? await translateToGujarati(f.key_en) : ''
+                ),
+                value_gu: getAutoTranslatedValue(
+                  `${f.id}:value`,
+                  f.value_en,
+                  f.value_gu,
+                  f.value_en ? await translateToGujarati(f.value_en) : ''
+                ),
                 subs: translatedSubs
               };
             })
@@ -229,6 +271,40 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
 
   const handleRemoveField = (id: string) => {
     setFields(fields.filter(f => f.id !== id));
+  };
+
+  const handleMoveField = (id: string, direction: 'up' | 'down') => {
+    setFields(prev => {
+      const index = prev.findIndex(f => f.id === id);
+      const nextIndex = direction === 'up' ? index - 1 : index + 1;
+
+      if (index < 0 || nextIndex < 0 || nextIndex >= prev.length) return prev;
+
+      const next = [...prev];
+      const [field] = next.splice(index, 1);
+      next.splice(nextIndex, 0, field);
+      return next;
+    });
+  };
+
+  const handleFieldDrop = (targetId: string) => {
+    if (!draggedFieldId || draggedFieldId === targetId) {
+      setDraggedFieldId(null);
+      return;
+    }
+
+    setFields(prev => {
+      const fromIndex = prev.findIndex(f => f.id === draggedFieldId);
+      const toIndex = prev.findIndex(f => f.id === targetId);
+
+      if (fromIndex < 0 || toIndex < 0) return prev;
+
+      const next = [...prev];
+      const [field] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, field);
+      return next;
+    });
+    setDraggedFieldId(null);
   };
 
   const handleFieldChange = (id: string, updates: Partial<Field>) => {
@@ -323,8 +399,8 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-foreground/50 backdrop-blur-sm flex items-center justify-center p-0 md:p-4 animate-fade-in">
-      <div className="w-full h-full md:h-auto md:max-w-4xl md:max-h-[90vh] bg-card md:rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex flex-col">
+    <div className="fixed inset-0 z-50 bg-foreground/50 backdrop-blur-sm flex items-center justify-center p-0 lg:p-4 animate-fade-in">
+      <div className="w-full h-full lg:h-[95dvh] lg:max-w-7xl bg-card lg:rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex min-h-0 flex-col">
         {/* Header */}
         <div className="bg-card border-b px-4 md:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -374,7 +450,7 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
         </div>
 
         {/* Form Body */}
-        <div className="p-4 md:p-6 overflow-y-auto flex-1 space-y-6 md:space-y-8">
+        <div className="admin-scrollbar p-4 md:p-6 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-6 md:space-y-8">
           {/* Top Controls */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between bg-muted/20 p-4 rounded-xl border border-border/50 gap-4">
             <div className="flex-1">
@@ -473,7 +549,42 @@ export function SectionEditor({ section, onClose }: SectionEditorProps) {
             ) : (
               <div className="space-y-4">
                 {fields.map((field, idx) => (
-                  <div key={field.id} className="group relative bg-muted/5 border rounded-xl p-4 transition-all hover:bg-muted/15 border-transparent hover:border-luxury-gold/20">
+                  <div
+                    key={field.id}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => handleFieldDrop(field.id)}
+                    className={`group relative bg-muted/5 border rounded-xl p-4 transition-all hover:bg-muted/15 hover:border-luxury-gold/20 ${draggedFieldId === field.id ? 'opacity-50 border-luxury-gold' : 'border-transparent'}`}
+                  >
+                    <div className="absolute right-3 top-3 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleMoveField(field.id, 'up')}
+                        disabled={idx === 0}
+                        className="h-8 w-8 rounded-full border bg-card text-muted-foreground hover:text-luxury-gold disabled:opacity-30 disabled:hover:text-muted-foreground flex items-center justify-center"
+                        aria-label="Move field up"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveField(field.id, 'down')}
+                        disabled={idx === fields.length - 1}
+                        className="h-8 w-8 rounded-full border bg-card text-muted-foreground hover:text-luxury-gold disabled:opacity-30 disabled:hover:text-muted-foreground flex items-center justify-center"
+                        aria-label="Move field down"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        draggable
+                        onDragStart={() => setDraggedFieldId(field.id)}
+                        onDragEnd={() => setDraggedFieldId(null)}
+                        className="h-8 w-8 rounded-full border bg-card text-muted-foreground hover:text-luxury-gold cursor-grab active:cursor-grabbing flex items-center justify-center"
+                        aria-label="Drag to reorder field"
+                      >
+                        <GripVertical className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                       {/* English Field */}
                       <div className="space-y-4">
