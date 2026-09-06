@@ -143,7 +143,7 @@ export function HeroSection({ section, heroImageUrl, heroImageUrls, heroImagePos
                 e.stopPropagation();
                 carouselApi?.scrollPrev();
               }}
-              className="hidden md:flex absolute left-6 top-1/2 z-30 h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition hover:bg-black/55"
+              className="flex absolute left-3 md:left-6 top-1/2 z-30 h-10 w-10 md:h-11 md:w-11 -translate-y-1/2 items-center justify-center rounded-full bg-background text-black shadow-sm transition hover:bg-background/90 active:scale-95"
               aria-label="Previous image"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -154,7 +154,7 @@ export function HeroSection({ section, heroImageUrl, heroImageUrls, heroImagePos
                 e.stopPropagation();
                 carouselApi?.scrollNext();
               }}
-              className="hidden md:flex absolute right-6 top-1/2 z-30 h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition hover:bg-black/55"
+              className="flex absolute right-3 md:right-6 top-1/2 z-30 h-10 w-10 md:h-11 md:w-11 -translate-y-1/2 items-center justify-center rounded-full bg-background text-black shadow-sm transition hover:bg-background/90 active:scale-95"
               aria-label="Next image"
             >
               <ChevronRight className="h-5 w-5" />
