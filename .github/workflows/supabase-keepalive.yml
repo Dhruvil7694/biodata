@@ -1,0 +1,21 @@
+name: Supabase keep-alive
+
+# Free-tier Supabase projects pause after ~7 days of inactivity.
+# This pings the admin-auth health action (a real DB query) twice a day.
+on:
+  schedule:
+    - cron: "17 3,15 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase health endpoint
+        run: |
+          response=$(curl -sS --fail --retry 3 --retry-delay 10 \
+            -X POST "https://ektofyrvnqoxojomnong.supabase.co/functions/v1/admin-auth" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"health"}')
+          echo "$response"
+          echo "$response" | grep -q '"success":true'
